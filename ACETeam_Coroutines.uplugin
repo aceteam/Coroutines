@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "ACE Team Coroutines",
+	"Description": "Coroutines",
+	"Category": "Utilities",
+	"CreatedBy": "ACE Team Software S.A.",
+	"CreatedByURL": "www.aceteam.cl",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "ACETeam_Coroutines",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ACETeam_CoroutinesTest",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
