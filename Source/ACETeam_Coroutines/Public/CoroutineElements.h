@@ -1,6 +1,7 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 #pragma once
 
+#include "CoroutineExecutor.h"
 #include "CoroutineNode.h"
 #include "FunctionTraits.h"
 
@@ -37,7 +38,7 @@ namespace ACETeam_Coroutines
 
 		class ACETEAM_COROUTINES_API FLoop : public FCoroutineDecorator
 		{
-			int m_LastOpen;
+			int m_LastStep;
 		
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
@@ -89,8 +90,10 @@ namespace ACETeam_Coroutines
 				m_Timer = m_TargetTime;
 				return Running; 
 			}
-			virtual EStatus Update(FCoroutineExecutor*, float DeltaTime) override
+			virtual EStatus Update(FCoroutineExecutor* Exec, float DeltaTime) override
 			{
+				if (Exec->IsInstant())
+					return Completed;
 				m_Timer -= DeltaTime;
 				if (m_Timer <= 0.0f)
 					return Completed;
@@ -109,8 +112,10 @@ namespace ACETeam_Coroutines
 				m_Frames = m_TargetFrames+1;
 				return Running;
 			}
-			virtual EStatus Update(FCoroutineExecutor*, float) override
+			virtual EStatus Update(FCoroutineExecutor* Exec, float) override
 			{
+				if (Exec->IsInstant())
+					return Completed;
 				--m_Frames;
 				if (m_Frames <= 0)
 					return Completed;

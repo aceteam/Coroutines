@@ -18,12 +18,12 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 		return true;
 	}
 
-	//task is just starting, let's eval its starting condition
+	//node is just starting, let's eval its starting condition
 	if (Info.Status == None)
 	{
 		Info.Status = Info.Node->Start(this);
 
-		//suspended tasks get thrown into the suspended list
+		//suspended nodes get thrown into the suspended list
 		if (Info.Status == Suspended)
 		{
 			m_SuspendedNodes.Emplace(MoveTemp(Info));
@@ -39,7 +39,7 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 
 	Info.Status = Info.Node->Update(this, DeltaTime);
 
-	//suspended tasks get thrown into the suspended list
+	//suspended nodes get thrown into the suspended list
 	if (Info.Status == Suspended)
 	{
 		m_SuspendedNodes.Emplace(MoveTemp(Info));
@@ -87,16 +87,16 @@ void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info
 			{
 				if (Status == Running)
 				{
-					//reactivated task
+					//reactivated node
 					m_ActiveNodes.Add(MoveTemp(*ParentInfo));
 					m_ActiveNodes.Last().Status = Running;
 					ParentInfo->Status = Aborted;
 					//won't erase info immediately to avoid invalidating iterator
-					//but task pointer was moved, so it won't be confused with
+					//but node pointer was moved, so it won't be confused with
 					//the actual valid iterator
 					//will be erased during Cleanup
 				}
-				else if (ParentInfo->Status != Aborted) //task was already aborted... don't do anything
+				else if (ParentInfo->Status != Aborted)
 				{
 					ParentInfo->Status = Aborted;
 					ProcessNodeEnd(*ParentInfo, Status);
@@ -105,9 +105,9 @@ void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info
 			else if (Status != Running)
 			{
 				ParentInfo = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Info.Parent));
-				if (ParentInfo && ParentInfo->Status != Aborted) //task was already aborted, don't do anything
+				if (ParentInfo && ParentInfo->Status != Aborted)
 				{
-					//mark this task for cleanup
+					//mark this node info for cleanup
 					ParentInfo->Status = Aborted;
 					ProcessNodeEnd(*ParentInfo, Status);
 				}
@@ -118,7 +118,8 @@ void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info
 
 void ACETeam_Coroutines::FCoroutineExecutor::Cleanup()
 {
-	m_SuspendedNodes.RemoveAll([](FNodeExecInfo const& Info) { return Info.Status == Aborted; });
+	auto Pred = [](FNodeExecInfo const& Info) { return Info.Status == Aborted; };
+	m_SuspendedNodes.RemoveAll(Pred);
 }
 
 void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
@@ -142,8 +143,8 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
 	}
 #if DO_CHECK
 	auto Pred = [=](const FNodeExecInfo& _Info ) {  return _Info.Parent == Node && _Info.Status != Aborted;};
-	FNodeExecInfo* SuspendedIt = m_SuspendedNodes.FindByPredicate(Pred);
-	FCoroutineNode* DependentTask = nullptr;
+	const FNodeExecInfo* SuspendedIt = m_SuspendedNodes.FindByPredicate(Pred);
+	const FCoroutineNode* DependentNode = nullptr;
 	if (!SuspendedIt)
 	{
 		auto* ActiveIt = Algo::FindByPredicate(m_ActiveNodes, Pred);
@@ -151,13 +152,13 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
 		{
 			return;
 		}
-		DependentTask = ActiveIt->Node.Get();
+		DependentNode = ActiveIt->Node.Get();
 	}
 	else
 	{
-		DependentTask = SuspendedIt->Node.Get();
+		DependentNode = SuspendedIt->Node.Get();
 	}
-	check(DependentTask == nullptr);
+	check(DependentNode == nullptr);
 #endif
 }
 
@@ -235,9 +236,9 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutineNode* Coroutin
 					return;
 				}
 			}
-			else //didn't find task
+			else //didn't find node
 			{
-				//UE_LOG(LogACETeamCoroutines, Warning, TEXT("Didn't find task to abort"));
+				//UE_LOG(LogACETeamCoroutines, Warning, TEXT("Didn't find node to abort"));
 				return;
 			}
 		}

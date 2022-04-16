@@ -108,16 +108,16 @@ namespace Detail
 
 	EStatus FLoop::Start( FCoroutineExecutor* Exec )
 	{
-		m_LastOpen = -1;
+		m_LastStep = -1;
 		return Running;
 	}
 
 	EStatus FLoop::Update( FCoroutineExecutor* Exec, float )
 	{
-		const int CurrentFrame = GFrameCounter;
-		if (CurrentFrame != m_LastOpen)
+		const int CurrentStep = Exec->StepCount();
+		if (CurrentStep != m_LastStep)
 		{
-			m_LastOpen = CurrentFrame;
+			m_LastStep = CurrentStep;
 			return FCoroutineDecorator::Start(Exec);
 		}
 		return Running;

@@ -27,6 +27,14 @@ namespace ACETeam_Coroutines
 		typedef TArray<FNodeExecInfo> SuspendedNodes;
 		SuspendedNodes m_SuspendedNodes;
 
+		//This flag indicates whether timers should just return instantly, and whether loops should allow more than one
+		//step per frame
+		bool m_bInstantMode = false;
+
+		//Step count that's incremented each time the executor completes a full step (usually once per frame)
+		//Used by loops to determine when they should stop their work for the step
+		int m_StepCount= 0;
+
 		bool SingleStep(float DeltaTime);
 		
 		void ProcessNodeEnd(FNodeExecInfo& Info, EStatus Status);
@@ -51,10 +59,26 @@ namespace ACETeam_Coroutines
 		//This is the main entry point for running a coroutine on an executor
 		void EnqueueCoroutine(FCoroutineNodePtr const& Coroutine);
 
+		bool IsInstant() const { return m_bInstantMode; }
+		int StepCount() const { return m_StepCount; }
+
+		//Runs enqueued coroutines instantly until all finish their work
+		//Use with caution, and make sure all custom time-sensitive decorators used are aware of instant mode
+		void RunInstant()
+		{
+			m_bInstantMode = true;
+			while (m_ActiveNodes.Num() > 1)
+			{
+				Step(0.0f);
+			}
+			m_bInstantMode = false;
+		}
+
 		void Step(float DeltaTime)
 		{
 			while (SingleStep(DeltaTime)) { continue; }
 			Cleanup();
+			++m_StepCount;
 		}
 
 		// Finds the root of the tree containing this node, and aborts the whole tree
