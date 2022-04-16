@@ -1,7 +1,7 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 #pragma once
 
-#include "Coroutine.h"
+#include "CoroutineNode.h"
 #include "Containers/RingBuffer.h"
 
 namespace ACETeam_Coroutines
@@ -14,66 +14,42 @@ namespace ACETeam_Coroutines
 			Active = ~(Completed|Failed),
 		};
 
-		struct FCoroutineInfo
+		struct FNodeExecInfo
 		{
-			FCoroutineInfo()
-			{
-				Parent = nullptr;
-				Status = (EStatus)None;
-			}
-			FCoroutinePtr Coroutine;
-			FCoroutine* Parent;
-			EStatus Status;
+			FCoroutineNodePtr Node;
+			FCoroutineNode* Parent = nullptr;
+			EStatus Status = static_cast<EStatus>(None);
 		};
 		
-		typedef TRingBuffer<FCoroutineInfo> ActiveTasks;
-		ActiveTasks m_ActiveCoroutines;
+		typedef TRingBuffer<FNodeExecInfo> ActiveNodes;
+		ActiveNodes m_ActiveNodes;
 
-		typedef TArray<FCoroutineInfo> SuspendedTasks;
-		SuspendedTasks m_SuspendedTasks;
+		typedef TArray<FNodeExecInfo> SuspendedNodes;
+		SuspendedNodes m_SuspendedNodes;
 
 		bool SingleStep(float DeltaTime);
 		
-		void ProcessTaskEnd(FCoroutineInfo& Info, EStatus Status);
+		void ProcessNodeEnd(FNodeExecInfo& Info, EStatus Status);
 
 		void Cleanup();
 
-		bool IsActive(const FCoroutineInfo& t) const
+		static bool IsActive(const FNodeExecInfo& NodeInfo)
 		{
-			return (t.Status & Active) != 0;
+			return (NodeInfo.Status & Active) != 0;
 		}
-		struct Coroutine_Is
+		
+		struct NodeIs
 		{
-			FCoroutine* m_Coroutine;
-			Coroutine_Is(FCoroutine* Coroutine) : m_Coroutine(Coroutine) {}
-			bool operator() (const FCoroutineInfo& t) { return t.Coroutine.Get() == m_Coroutine; }
+			FCoroutineNode* m_Node;
+			NodeIs(FCoroutineNode* Node) : m_Node(Node) {}
+			bool operator() (FNodeExecInfo const& t) { return t.Node.Get() == m_Node; }
 		};
+	
 	public:
 		FCoroutineExecutor();
 
-		void OpenCoroutine(FCoroutinePtr const& Coroutine, FCoroutine* Parent = nullptr);
-
-		// This function silently drops a task from the scheduler,
-		// only telling the task itself about it.
-		// Normally used by parallels to abort branches.
-		// It does not alert the parent, because either it is the parallel and already knows about it,
-		// or it's an intermediate composite node that doesn't need to know because it will be aborted as well.
-		void AbortTask(FCoroutine* Coroutine);
-
-		void AbortTask(FCoroutinePtr const& Coroutine) { AbortTask(Coroutine.Get()); }
-
-		// Finds the root of the tree containing this task, and aborts the whole tree
-		// Use of this function should be limited to the handling of fatal errors
-		void AbortTree(FCoroutine* Coroutine);
-		
-		void AbortTree(FCoroutinePtr const& Coroutine) { AbortTree(Coroutine.Get()); }
-
-		// This function can be used to force a task to end outside of the normal functioning of the scheduler.
-		// For instance, a task whose only purpose is to wait suspended for something to happen can be notified in this
-		// way. Note however that any dependent tasks will not be updated until the scheduler's next step.
-		void ForceTaskEnd(FCoroutine* Coroutine, EStatus Status);
-
-		void ForceTaskEnd(FCoroutinePtr Coroutine, EStatus Status) { ForceTaskEnd(Coroutine.Get(), Status); }
+		//This is the main entry point for running a coroutine on an executor
+		void EnqueueCoroutine(FCoroutineNodePtr const& Coroutine);
 
 		void Step(float DeltaTime)
 		{
@@ -81,36 +57,66 @@ namespace ACETeam_Coroutines
 			Cleanup();
 		}
 
-		enum TaskFindResult
+		// Finds the root of the tree containing this node, and aborts the whole tree
+		// Use of this function should be limited to the handling of fatal errors
+		void AbortTree(FCoroutineNode* Coroutine);
+		
+		void AbortTree(FCoroutineNodePtr const& Coroutine) { AbortTree(Coroutine.Get()); }
+
+		enum class EFindNodeResult
 		{
-			TFR_NotRunning,
-			TFR_Suspended,
-			TFR_Running,
+			NotRunning,
+			Suspended,
+			Running,
+			Aborted,
 		};
-		TaskFindResult FindTask(FCoroutinePtr Coroutine);
+		//Determines the status of a specific coroutine node in this executor
+		EFindNodeResult FindCoroutineNode(FCoroutineNodePtr const& Node);
+
+		//~ Internal functions
+		
+		//Internal - Enqueues a coroutine node for execution as soon as possible, if this is done while the Executor's step is
+		//running this will be the next node to be evaluated.
+		void EnqueueCoroutineNode(FCoroutineNodePtr const& Node, FCoroutineNode* Parent);
+
+		// Internal - This function silently drops a coroutine node from the executor,
+		// only telling the node itself about it.
+		// Normally used by parallels such as races to abort branches.
+		// It does not alert the parent, because either it is the parallel and already knows about it,
+		// or it's an intermediate composite node that doesn't need to know because it will be aborted as well.
+		void AbortNode(FCoroutineNode* Node);
+
+		void AbortNode(FCoroutineNodePtr const& Node) { AbortNode(Node.Get()); }
+
+		// This function can be used to force a task to end outside of the normal functioning of the executor.
+		// For instance, a task whose only purpose is to wait suspended for something to happen can be notified in this
+		// way. Note however that any dependent tasks will not be updated until the executor's next step.
+		void ForceNodeEnd(FCoroutineNode* Node, EStatus Status);
+
+		void ForceNodeEnd(FCoroutineNodePtr const& Node, EStatus Status) { ForceNodeEnd(Node.Get(), Status); }
 	};
 
-	namespace detail
+	namespace Detail
 	{
 		template <typename TLambda>
-		class TDeferredCoroutineWrapper : public FCoroutine
+		class TDeferredCoroutineWrapper : public FCoroutineNode
 		{
 			TLambda m_Lambda;
-			FCoroutinePtr m_Child;
+			FCoroutineNodePtr m_Child;
 		public:
 			TDeferredCoroutineWrapper (TLambda const& Lambda) : m_Lambda(Lambda) {}
 			virtual EStatus Start(FCoroutineExecutor* Executor) override
 			{
 				m_Child = m_Lambda();
-				Executor->OpenCoroutine(m_Child,this);
+				Executor->EnqueueCoroutineNode(m_Child,this);
 				return Suspended; 
 			}
-			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutine*) override { return Status; }
+			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override { return Status; }
 			virtual void End(FCoroutineExecutor* Executor, EStatus Status) override
 			{
 				if (Status == Aborted)
 				{
-					Executor->AbortTask(m_Child);
+					Executor->AbortNode(m_Child);
 				}
 			};
 		};
@@ -118,6 +124,6 @@ namespace ACETeam_Coroutines
 
 	//Make a simple coroutine out of a function, functor or lambda that returns a coroutine pointer
 	template <typename TLambda>
-	FCoroutinePtr _Deferred(TLambda& Lambda) { return MakeShared<detail::TDeferredCoroutineWrapper<TLambda> >(Lambda); }
+	FCoroutineNodePtr _Deferred(TLambda& Lambda) { return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda> >(Lambda); }
 	
 }

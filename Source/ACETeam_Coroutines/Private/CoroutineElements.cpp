@@ -5,32 +5,32 @@
 
 namespace ACETeam_Coroutines
 {
-namespace detail
+namespace Detail
 {
-	void FCompositeCoroutine::AddChild( FCoroutinePtr const& Child )
+	void FCompositeCoroutine::AddChild( FCoroutineNodePtr const& Child )
 	{
 		m_Children.Add(Child);
 	}
 
-	void FCompositeCoroutine::End( FCoroutineExecutor* Executor, EStatus Status )
+	void FCompositeCoroutine::End( FCoroutineExecutor* Exec, EStatus Status )
 	{
 		if (Status == Aborted)
 		{
-			for (auto& child : m_Children)
-				Executor->AbortTask(child.Get());
+			for (auto& Child : m_Children)
+				Exec->AbortNode(Child);
 		}
 	}
 
-	EStatus FSequence::Start( FCoroutineExecutor* Executor )
+	EStatus FSequence::Start( FCoroutineExecutor* Exec )
 	{
 		if (m_Children.Num() == 0)
 			return Completed;
 		m_CurChild = 0;
-		Executor->OpenCoroutine(m_Children[m_CurChild++], this);
+		Exec->EnqueueCoroutineNode(m_Children[m_CurChild++], this);
 		return Suspended;
 	}
 
-	EStatus FSequence::OnChildStopped( FCoroutineExecutor* Executor, EStatus Status, FCoroutine* Child )
+	EStatus FSequence::OnChildStopped( FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child )
 	{
 		if (Status == Failed)
 		{
@@ -40,7 +40,7 @@ namespace detail
 		{
 			return Completed;
 		}
-		Executor->OpenCoroutine(m_Children[m_CurChild++], this);
+		Exec->EnqueueCoroutineNode(m_Children[m_CurChild++], this);
 		return Suspended;
 	}
 
@@ -48,12 +48,12 @@ namespace detail
 	{
 		for (int i = m_Children.Num()-1; i >= 0; --i)
 		{
-			Exec->OpenCoroutine(m_Children[i], this);
+			Exec->EnqueueCoroutineNode(m_Children[i], this);
 		}
 		return Suspended;
 	}
 
-	EStatus FRace::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutine* Child)
+	EStatus FRace::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
 	{
 		AbortOtherBranches(Child, Exec);
 		return Status;
@@ -66,7 +66,7 @@ namespace detail
 		return FParallelBase::Start(Exec);
 	}
 
-	EStatus FSync::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutine* Child)
+	EStatus FSync::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
 	{
 		if (Status == Failed)
 			m_EndStatus = Failed;
@@ -77,13 +77,13 @@ namespace detail
 		return Suspended;
 	}
 
-	void FParallelBase::AbortOtherBranches( FCoroutine* Child, FCoroutineExecutor* Exec )
+	void FParallelBase::AbortOtherBranches( FCoroutineNode* Child, FCoroutineExecutor* Exec )
 	{
 		for (int i = m_Children.Num()-1; i >= 0; --i)
 		{
 			if (m_Children[i].Get() != Child)
 			{
-				Exec->AbortTask(m_Children[i].Get());
+				Exec->AbortNode(m_Children[i].Get());
 			}
 		}
 	}
@@ -91,18 +91,18 @@ namespace detail
 	void FCoroutineDecorator::End( FCoroutineExecutor* Exec, EStatus Status )
 	{
 		if (Status == Aborted)
-			Exec->AbortTask(m_Child);
+			Exec->AbortNode(m_Child);
 	}
 
 	EStatus FCoroutineDecorator::Start( FCoroutineExecutor* Exec )
 	{
-		Exec->OpenCoroutine(m_Child, this);
+		Exec->EnqueueCoroutineNode(m_Child, this);
 		return Suspended;
 	}
 
-	EStatus FBranch::Start( FCoroutineExecutor* Exec )
+	EStatus FFork::Start( FCoroutineExecutor* Exec )
 	{
-		Exec->OpenCoroutine(m_Child);
+		Exec->EnqueueCoroutine(m_Child);
 		return Completed;
 	}
 
@@ -114,16 +114,16 @@ namespace detail
 
 	EStatus FLoop::Update( FCoroutineExecutor* Exec, float )
 	{
-		int currentStep = GFrameCounter;
-		if (currentStep != m_LastOpen)
+		const int CurrentFrame = GFrameCounter;
+		if (CurrentFrame != m_LastOpen)
 		{
-			m_LastOpen = currentStep;
+			m_LastOpen = CurrentFrame;
 			return FCoroutineDecorator::Start(Exec);
 		}
 		return Running;
 	}
 
-	EStatus FLoop::OnChildStopped( FCoroutineExecutor* Exec, EStatus Status, FCoroutine* )
+	EStatus FLoop::OnChildStopped( FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* )
 	{
 		if (Status == Failed)
 		{

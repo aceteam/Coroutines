@@ -1,21 +1,21 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 #pragma once
 
-#include "Coroutine.h"
+#include "CoroutineNode.h"
 #include "FunctionTraits.h"
 
 namespace ACETeam_Coroutines
 {
-	namespace detail
+	namespace Detail
 	{
-		class ACETEAM_COROUTINES_API FCoroutineDecorator : public FCoroutine
+		class ACETEAM_COROUTINES_API FCoroutineDecorator : public FCoroutineNode
 		{
 		protected:
-			FCoroutinePtr m_Child;
+			FCoroutineNodePtr m_Child;
 		public:
 			// Start is normal behavior for decorators, but not forced
 			virtual EStatus Start(FCoroutineExecutor* Executor) override;
-			virtual void AddChild(FCoroutinePtr const& Child)
+			virtual void AddChild(FCoroutineNodePtr const& Child)
 			{
 				if (m_Child)
 				{
@@ -29,7 +29,7 @@ namespace ACETeam_Coroutines
 		};
 
 		// Launch a task to run independent of its launching context
-		class ACETEAM_COROUTINES_API FBranch : public FCoroutineDecorator
+		class ACETEAM_COROUTINES_API FFork : public FCoroutineDecorator
 		{
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
@@ -42,7 +42,7 @@ namespace ACETeam_Coroutines
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus Update(FCoroutineExecutor* Exec, float) override;
-			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutine*) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode*) override;
 		};
 
 		template<typename TScopeEndedLambda>
@@ -52,33 +52,33 @@ namespace ACETeam_Coroutines
 		
 		public:
 			TScope(TScopeEndedLambda& OnScopeEnd) : m_OnScopeEnd(OnScopeEnd){}
-			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutine*) override
+			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override
 			{
 				m_OnScopeEnd();
 				return Status;
 			}
 		};
 
-		class ACETEAM_COROUTINES_API FCompositeCoroutine : public FCoroutine
+		class ACETEAM_COROUTINES_API FCompositeCoroutine : public FCoroutineNode
 		{
 		protected:
-			typedef TArray<FCoroutinePtr> FChildren;
+			typedef TArray<FCoroutineNodePtr> FChildren;
 			FChildren m_Children;
 		public:
-			virtual void AddChild(FCoroutinePtr const& Child) ;
+			virtual void AddChild(FCoroutineNodePtr const& Child) ;
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
 			virtual int GetNumChildren() { return m_Children.Num(); }
 		};
 
-		class ACETEAM_COROUTINES_API FSequence : public FCompositeCoroutine
+		class ACETEAM_COROUTINES_API FSequence final : public FCompositeCoroutine
 		{
-			uint32 m_CurChild;
+			uint32 m_CurChild = 0;
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
-			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutine* Child) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 		};
 
-		class ACETEAM_COROUTINES_API FTimer : public FCoroutine
+		class ACETEAM_COROUTINES_API FTimer : public FCoroutineNode
 		{
 			float m_Timer;
 			float m_TargetTime;
@@ -98,7 +98,7 @@ namespace ACETeam_Coroutines
 			}
 		};
 
-		class ACETEAM_COROUTINES_API FFrameTimer : public FCoroutine
+		class ACETEAM_COROUTINES_API FFrameTimer : public FCoroutineNode
 		{
 			int m_Frames;
 			int m_TargetFrames;
@@ -122,13 +122,13 @@ namespace ACETeam_Coroutines
 		{
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
-			void AbortOtherBranches( FCoroutine* Child, FCoroutineExecutor* Exec );
+			void AbortOtherBranches( FCoroutineNode* Child, FCoroutineExecutor* Exec );
 		};
 
 		class ACETEAM_COROUTINES_API FRace : public FParallelBase
 		{
 		public:
-			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutine* Child) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 		};
 
 		class ACETEAM_COROUTINES_API FSync : public FParallelBase
@@ -137,11 +137,11 @@ namespace ACETeam_Coroutines
 			EStatus m_EndStatus = Completed;
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
-			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutine* Child) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 		};
 
 		template<typename TCoroutine>
-		inline void AddCoroutineChild(TSharedRef<TCoroutine>& Composite, FCoroutinePtr& First)
+		inline void AddCoroutineChild(TSharedRef<TCoroutine>& Composite, FCoroutineNodePtr& First)
 		{
 			Composite->AddChild(First);
 		}
@@ -165,7 +165,7 @@ namespace ACETeam_Coroutines
 		};
 
 		template <typename TCoroutine, typename TLambda>
-		struct TAddCompositeChildHelper<TCoroutine, TLambda, FCoroutinePtr>
+		struct TAddCompositeChildHelper<TCoroutine, TLambda, FCoroutineNodePtr>
 		{
 			void operator()(TSharedRef<TCoroutine>& Composite, TLambda& First)
 			{
@@ -193,7 +193,7 @@ namespace ACETeam_Coroutines
 		}
 		
 		template<typename TComposite, typename... TChildren>
-		FCoroutinePtr MakeComposite(TChildren... Children)
+		FCoroutineNodePtr MakeComposite(TChildren... Children)
 		{
 			auto Comp = StaticCastSharedRef<FCompositeCoroutine>(MakeShared<TComposite>());
 			AddCompositeChildren(Comp, Children...);
@@ -208,7 +208,7 @@ namespace ACETeam_Coroutines
 			TScopeHelper(TScopeLambda& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
 
 			template <typename TChild>
-			FCoroutinePtr operator() (TChild&& ScopeBody)
+			FCoroutineNodePtr operator() (TChild&& ScopeBody)
 			{
 				auto Scope = MakeShared<TScope<TScopeLambda>>(m_ScopeLambda);
 				AddCoroutineChild(Scope, ScopeBody);
@@ -218,44 +218,52 @@ namespace ACETeam_Coroutines
 	}
 
 	template<typename ...TChildren>
-	FCoroutinePtr _Seq(TChildren... Children)
+	FCoroutineNodePtr _Seq(TChildren... Children)
 	{
-		return detail::MakeComposite<detail::FSequence>(Children...);
+		return Detail::MakeComposite<Detail::FSequence>(Children...);
 	}
 
 	template<typename ...TChildren>
-	FCoroutinePtr _Race(TChildren... Children)
+	FCoroutineNodePtr _Race(TChildren... Children)
 	{
-		return detail::MakeComposite<detail::FRace>(Children...);
+		return Detail::MakeComposite<Detail::FRace>(Children...);
 	}
 
 	template<typename ...TChildren>
-	FCoroutinePtr _Sync(TChildren... Children)
+	FCoroutineNodePtr _Sync(TChildren... Children)
 	{
-		return detail::MakeComposite<detail::FSync>(Children...);
+		return Detail::MakeComposite<Detail::FSync>(Children...);
 	}
 
-	inline FCoroutinePtr _Wait(float Time)
+	inline FCoroutineNodePtr _Wait(float Time)
 	{
-		return MakeShared<detail::FTimer>(Time);
+		return MakeShared<Detail::FTimer>(Time);
 	}
 
-	inline FCoroutinePtr _WaitFrames(int Frames)
+	inline FCoroutineNodePtr _WaitFrames(int Frames)
 	{
-		return MakeShared<detail::FFrameTimer>(Frames);
+		return MakeShared<Detail::FFrameTimer>(Frames);
 	}
 
 	template<typename TChild>
-	FCoroutinePtr _Loop(TChild Body)
+	FCoroutineNodePtr _Loop(TChild Body)
 	{
-		auto Loop = MakeShared<detail::FLoop>();
-		detail::AddCoroutineChild(Loop, Body);
+		auto Loop = MakeShared<Detail::FLoop>();
+		Detail::AddCoroutineChild(Loop, Body);
 		return Loop;
 	}
 
 	template<typename TOnScopeExit>
-	detail::TScopeHelper<TOnScopeExit> _Scope(TOnScopeExit&& OnScopeExit)
+	Detail::TScopeHelper<TOnScopeExit> _Scope(TOnScopeExit&& OnScopeExit)
 	{
-		return detail::TScopeHelper<TOnScopeExit>(OnScopeExit);
+		return Detail::TScopeHelper<TOnScopeExit>(OnScopeExit);
+	}
+
+	template<typename TChild>
+	FCoroutineNodePtr _Fork(TChild Body)
+	{
+		auto Fork = MakeShared<Detail::FFork>();
+		Detail::AddCoroutineChild(Fork, Body);
+		return Fork;
 	}
 }

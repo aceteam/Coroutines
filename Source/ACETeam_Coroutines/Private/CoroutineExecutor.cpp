@@ -3,13 +3,13 @@
 
 bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 {
-	FCoroutineInfo Info = m_ActiveCoroutines.Last();
-	m_ActiveCoroutines.Pop();
+	FNodeExecInfo Info = MoveTemp(m_ActiveNodes.Last());
+	m_ActiveNodes.Pop();
 
-	if (Info.Coroutine.Get() == nullptr)
+	if (Info.Node.Get() == nullptr)
 	{
 		//we've reached the marker, it's time to quit for this step
-		m_ActiveCoroutines.AddFront(Info);
+		m_ActiveNodes.AddFront(Info);
 		return false;
 	}
 	
@@ -18,95 +18,98 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 		return true;
 	}
 
-	//task is just starting, lets eval its starting condition
+	//task is just starting, let's eval its starting condition
 	if (Info.Status == None)
 	{
-		Info.Status = Info.Coroutine->Start(this);
+		Info.Status = Info.Node->Start(this);
 
 		//suspended tasks get thrown into the suspended list
 		if (Info.Status == Suspended)
 		{
-			m_SuspendedTasks.Add(Info);
+			m_SuspendedNodes.Emplace(MoveTemp(Info));
 			return true;
 		}
 		//check if it's already done
 		if (!IsActive(Info))
 		{
-			ProcessTaskEnd(Info, Info.Status);
+			ProcessNodeEnd(Info, Info.Status);
 			return true;
 		}
 	}
 
-	Info.Status = Info.Coroutine->Update(this, DeltaTime);
+	Info.Status = Info.Node->Update(this, DeltaTime);
 
 	//suspended tasks get thrown into the suspended list
 	if (Info.Status == Suspended)
 	{
-		m_SuspendedTasks.Add(Info);
+		m_SuspendedNodes.Emplace(MoveTemp(Info));
 		return true;
 	}
 	if (!IsActive(Info))
 	{
-		ProcessTaskEnd(Info, Info.Status);
+		ProcessNodeEnd(Info, Info.Status);
 		return true;
 	}
 	
-	m_ActiveCoroutines.AddFront(Info);
+	m_ActiveNodes.EmplaceFront(MoveTemp(Info));
 	return true;
 }
 
 
 ACETeam_Coroutines::FCoroutineExecutor::FCoroutineExecutor()
 {
-	m_ActiveCoroutines.Add(FCoroutineInfo()); //add frame marker
+	m_ActiveNodes.Add(FNodeExecInfo()); //add empty info that serves as frame marker
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::OpenCoroutine(FCoroutinePtr const& Coroutine, FCoroutine* Parent)
+void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutine(FCoroutineNodePtr const& Coroutine)
 {
-	FCoroutineInfo CoroutineInfo;
-	CoroutineInfo.Coroutine = Coroutine;
+	EnqueueCoroutineNode(Coroutine, nullptr);
+}
+
+void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutineNode(FCoroutineNodePtr const& Node, FCoroutineNode* Parent)
+{
+	FNodeExecInfo CoroutineInfo;
+	CoroutineInfo.Node = Node;
 	CoroutineInfo.Parent = Parent;
-	CoroutineInfo.Status = (EStatus)None;
-	m_ActiveCoroutines.Add(CoroutineInfo);
+	CoroutineInfo.Status = static_cast<EStatus>(None);
+	m_ActiveNodes.Add(CoroutineInfo);
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::ProcessTaskEnd( FCoroutineInfo& Info, EStatus Status )
+void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info, EStatus Status )
 {
-	Info.Coroutine->End(this, Status);
+	Info.Node->End(this, Status);
 	if (Info.Parent)
 	{
-		Status = Info.Parent->OnChildStopped(this, Status, Info.Coroutine.Get());
+		Status = Info.Parent->OnChildStopped(this, Status, Info.Node.Get());
 		if (Status != Suspended)
 		{
-			FCoroutineInfo* It;
-			It = m_SuspendedTasks.FindByPredicate([Target = Info.Parent](FCoroutineInfo& node) { return node.Coroutine.Get() == Target;});
-			if (It)
+			if (FNodeExecInfo* ParentInfo = m_SuspendedNodes.FindByPredicate(NodeIs(Info.Parent)))
 			{
 				if (Status == Running)
 				{
 					//reactivated task
-					m_ActiveCoroutines.Add(*It);
-					m_ActiveCoroutines.Last().Status = Running;
-					It->Status = Aborted;
-					//won't erase immediately to avoid invalidating iterator
-					//but releasing task, so if another task needs to abort it, it won't confuse this one
-					//with the actual valid iterator
-					It->Coroutine.Reset();
+					m_ActiveNodes.Add(MoveTemp(*ParentInfo));
+					m_ActiveNodes.Last().Status = Running;
+					ParentInfo->Status = Aborted;
+					//won't erase info immediately to avoid invalidating iterator
+					//but task pointer was moved, so it won't be confused with
+					//the actual valid iterator
+					//will be erased during Cleanup
 				}
-				else if (It->Status != Aborted) //task was already aborted... don't do anything
+				else if (ParentInfo->Status != Aborted) //task was already aborted... don't do anything
 				{
-					It->Status = Aborted;
-					ProcessTaskEnd(*It, Status);
+					ParentInfo->Status = Aborted;
+					ProcessNodeEnd(*ParentInfo, Status);
 				}
 			}
 			else if (Status != Running)
 			{
-				It = ::Algo::FindByPredicate(m_ActiveCoroutines, [target = Info.Parent](FCoroutineInfo& node) { return node.Coroutine.Get() == target;});
-				if (It && It->Status != Aborted) //task was already aborted, don't do anything
+				ParentInfo = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Info.Parent));
+				if (ParentInfo && ParentInfo->Status != Aborted) //task was already aborted, don't do anything
 				{
 					//mark this task for cleanup
-					It->Status = Aborted;
-					ProcessTaskEnd(*It, Status);
+					ParentInfo->Status = Aborted;
+					ProcessNodeEnd(*ParentInfo, Status);
 				}
 			}
 		}
@@ -115,94 +118,94 @@ void ACETeam_Coroutines::FCoroutineExecutor::ProcessTaskEnd( FCoroutineInfo& Inf
 
 void ACETeam_Coroutines::FCoroutineExecutor::Cleanup()
 {
-	m_SuspendedTasks.RemoveAll([](FCoroutineInfo& Info) { return Info.Status == Aborted; });
+	m_SuspendedNodes.RemoveAll([](FNodeExecInfo const& Info) { return Info.Status == Aborted; });
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::AbortTask( FCoroutine* Coroutine )
+void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
 {
-	if (!Coroutine)
+	if (!Node)
 		return;
-	FCoroutineInfo* It;
-	It = m_SuspendedTasks.FindByPredicate(Coroutine_Is(Coroutine));
-	if (It)
+	FNodeExecInfo* Info = m_SuspendedNodes.FindByPredicate(NodeIs(Node));
+	if (Info)
 	{
-		Coroutine->End(this, Aborted);
-		It->Status = Aborted;
+		Node->End(this, Aborted);
+		Info->Status = Aborted;
 	}
 	else
 	{
-		It = ::Algo::FindByPredicate(m_ActiveCoroutines, Coroutine_Is(Coroutine));
-		if (It)
+		Info = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Node));
+		if (Info)
 		{
-			Coroutine->End(this, Aborted);
-			m_ActiveCoroutines.RemoveAt(m_ActiveCoroutines.ConvertPointerToIndex(It));
+			Node->End(this, Aborted);
+			m_ActiveNodes.RemoveAt(m_ActiveNodes.ConvertPointerToIndex(Info));
 		}
 	}
-#if !UE_BUILD_SHIPPING
-	auto Criteria = [=](FCoroutineInfo& Info ) {  return Info.Parent == Coroutine && Info.Status != Aborted;};
-	auto* SuspendedIt = m_SuspendedTasks.FindByPredicate(Criteria);
-	FCoroutine* DependentTask = nullptr;
+#if DO_CHECK
+	auto Pred = [=](const FNodeExecInfo& _Info ) {  return _Info.Parent == Node && _Info.Status != Aborted;};
+	FNodeExecInfo* SuspendedIt = m_SuspendedNodes.FindByPredicate(Pred);
+	FCoroutineNode* DependentTask = nullptr;
 	if (!SuspendedIt)
 	{
-		auto* ActiveIt = Algo::FindByPredicate(m_ActiveCoroutines, Criteria);
+		auto* ActiveIt = Algo::FindByPredicate(m_ActiveNodes, Pred);
 		if (!ActiveIt)
 		{
 			return;
 		}
-		DependentTask = ActiveIt->Coroutine.Get();
+		DependentTask = ActiveIt->Node.Get();
 	}
 	else
 	{
-		DependentTask = SuspendedIt->Coroutine.Get();
+		DependentTask = SuspendedIt->Node.Get();
 	}
 	check(DependentTask == nullptr);
 #endif
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::ForceTaskEnd( FCoroutine* Coroutine, EStatus Status )
+void ACETeam_Coroutines::FCoroutineExecutor::ForceNodeEnd( FCoroutineNode* Node, EStatus Status )
 {
-	FCoroutineInfo* It = m_SuspendedTasks.FindByPredicate(Coroutine_Is(Coroutine));
-	if (It)
+	FNodeExecInfo* Info;
+	Info = m_SuspendedNodes.FindByPredicate(NodeIs(Node));
+	if (Info)
 	{
-		FCoroutineInfo t = *It;
-		m_SuspendedTasks.RemoveAtSwap(It - m_SuspendedTasks.GetData());
-		ProcessTaskEnd(t, Status);
+		FNodeExecInfo t = MoveTemp(*Info);
+		m_SuspendedNodes.RemoveAtSwap(Info - m_SuspendedNodes.GetData());
+		ProcessNodeEnd(t, Status);
 	}
 	else
 	{
-		It = ::Algo::FindByPredicate(m_ActiveCoroutines, Coroutine_Is(Coroutine));
-		if (It)
+		Info = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Node));
+		if (Info)
 		{
-			FCoroutineInfo Info = *It;
-			m_ActiveCoroutines.RemoveAt(m_ActiveCoroutines.ConvertPointerToIndex(It));
-			ProcessTaskEnd(Info, Status);
+			FNodeExecInfo TempInfo = MoveTemp(*Info);
+			m_ActiveNodes.RemoveAt(m_ActiveNodes.ConvertPointerToIndex(Info));
+			ProcessNodeEnd(TempInfo, Status);
 		}
 	}
 }
 
-ACETeam_Coroutines::FCoroutineExecutor::TaskFindResult ACETeam_Coroutines::FCoroutineExecutor::FindTask( FCoroutinePtr CoroutinePtr )
+ACETeam_Coroutines::FCoroutineExecutor::EFindNodeResult ACETeam_Coroutines::FCoroutineExecutor::FindCoroutineNode(FCoroutineNodePtr const& CoroutinePtr)
 {
-	FCoroutine* Coroutine = CoroutinePtr.Get();
-	FCoroutineInfo* It = m_SuspendedTasks.FindByPredicate(Coroutine_Is(Coroutine));
+	FCoroutineNode* Coroutine = CoroutinePtr.Get();
+	FNodeExecInfo* It = m_SuspendedNodes.FindByPredicate(NodeIs(Coroutine));
 	if (It)
 	{
-		return TFR_Suspended;
+		return EFindNodeResult::Suspended;
 	}
-	It = ::Algo::FindByPredicate(m_ActiveCoroutines, Coroutine_Is(Coroutine));
+	It = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Coroutine));
 	if (It)
 	{
-		return TFR_Running;
+		return It->Status == Aborted ? EFindNodeResult::Aborted : EFindNodeResult::Running;
 	}
-	return TFR_NotRunning;
+	return EFindNodeResult::NotRunning;
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutine* Coroutine )
+void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutineNode* Coroutine )
 {
 	//find root
-	FCoroutine* Root = Coroutine;
+	FCoroutineNode* Root = Coroutine;
 	for (;;)
 	{
-		FCoroutineInfo* It = m_SuspendedTasks.FindByPredicate(Coroutine_Is(Coroutine));
+		FNodeExecInfo* It = m_SuspendedNodes.FindByPredicate(NodeIs(Coroutine));
 		if (It)
 		{
 			if (It->Parent)
@@ -218,7 +221,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutine* Coroutine )
 		}
 		else
 		{
-			It = ::Algo::FindByPredicate(m_ActiveCoroutines, Coroutine_Is(Coroutine));
+			It = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Coroutine));
 			if (It)
 			{
 				if (It->Parent)
@@ -228,7 +231,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutine* Coroutine )
 				else
 				{
 					Root->End(this, Aborted);
-					m_ActiveCoroutines.RemoveAt(m_ActiveCoroutines.ConvertPointerToIndex(It));
+					m_ActiveNodes.RemoveAt(m_ActiveNodes.ConvertPointerToIndex(It));
 					return;
 				}
 			}
@@ -240,15 +243,3 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutine* Coroutine )
 		}
 	}
 }
-
-//EStatus EventListenerBase::Start( FCoroutineExecutor* schd )
-//{
-//	m_schd = schd;
-//	m_event->Register(this);
-//	return Suspended;
-//}
-
-//void EventListenerBase::End( FCoroutineExecutor*, EStatus)
-//{
-//	m_event->Unregister(this);
-//}

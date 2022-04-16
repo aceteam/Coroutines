@@ -22,7 +22,7 @@ void ACoroutineTest::BeginPlay()
 {
 	Super::BeginPlay();
 	using namespace ACETeam_Coroutines;
-	Executor.OpenCoroutine
+	Executor.EnqueueCoroutine
 	(
 		_Race
 		(
