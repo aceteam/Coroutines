@@ -9,6 +9,74 @@ namespace ACETeam_Coroutines
 {
 	namespace Detail
 	{
+		template <typename TLambda>
+		class FLambdaCoroutine: public FCoroutineNode
+		{
+			TLambda	m_Lambda;
+		public:
+			FLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda){}
+			virtual EStatus Start(FCoroutineExecutor*) override { m_Lambda(); return Completed;}
+		};
+
+		template <typename TLambda>
+		class FConditionLambdaCoroutine : public FCoroutineNode
+		{
+			TLambda m_Lambda;
+		public:
+			FConditionLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda) {}
+			virtual EStatus Start(FCoroutineExecutor*) override { return m_Lambda() ? Completed : Failed; }
+		};
+		
+		template <typename TLambda>
+		class TDeferredCoroutineWrapper : public FCoroutineNode
+		{
+			TLambda m_Lambda;
+			FCoroutineNodePtr m_Child;
+		public:
+			TDeferredCoroutineWrapper (TLambda const& Lambda) : m_Lambda(Lambda) {}
+			virtual EStatus Start(FCoroutineExecutor* Executor) override
+			{
+				m_Child = m_Lambda();
+				Executor->EnqueueCoroutineNode(m_Child,this);
+				return Suspended; 
+			}
+			
+			//We're standing in for the child coroutine, so we replicate its end status
+			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override { return Status; }
+			virtual void End(FCoroutineExecutor* Executor, EStatus Status) override
+			{
+				if (Status == Aborted)
+				{
+					Executor->AbortNode(m_Child);
+				}
+				m_Child.Reset(); //Child has finished its execution, so it can be released
+			};
+		};
+	}
+
+	//Make a simple task out of a function, functor or lambda
+	template <typename F>
+	FCoroutineNodePtr _Lambda(F const & f)
+	{
+		return MakeShared<Detail::FLambdaCoroutine<F> >(f);
+	}
+
+	//Make a simple task out of a function, functor or lambda
+	template <typename F>
+	FCoroutineNodePtr _ConditionalLambda(F const & f)
+	{
+		return MakeShared<Detail::FConditionLambdaCoroutine<F> >(f);
+	}
+
+	//Make a simple coroutine out of a function, functor or lambda that returns a coroutine pointer
+	template <typename TLambda>
+	FCoroutineNodePtr _Deferred(TLambda& Lambda)
+	{
+		return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda> >(Lambda);
+	}
+	
+	namespace Detail
+	{
 		class ACETEAM_COROUTINES_API FCoroutineDecorator : public FCoroutineNode
 		{
 		protected:
@@ -16,7 +84,7 @@ namespace ACETeam_Coroutines
 		public:
 			// Start is normal behavior for decorators, but not forced
 			virtual EStatus Start(FCoroutineExecutor* Executor) override;
-			virtual void AddChild(FCoroutineNodePtr const& Child)
+			void AddChild(FCoroutineNodePtr const& Child)
 			{
 				if (m_Child)
 				{
@@ -66,7 +134,7 @@ namespace ACETeam_Coroutines
 			typedef TArray<FCoroutineNodePtr> FChildren;
 			FChildren m_Children;
 		public:
-			virtual void AddChild(FCoroutineNodePtr const& Child) ;
+			void AddChild(FCoroutineNodePtr const& Child);
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
 			virtual int GetNumChildren() { return m_Children.Num(); }
 		};
@@ -84,7 +152,7 @@ namespace ACETeam_Coroutines
 			float m_Timer;
 			float m_TargetTime;
 		public:
-			FTimer(float TargetTime): m_TargetTime (TargetTime) {}
+			explicit FTimer(float TargetTime): m_TargetTime (TargetTime) {}
 			virtual EStatus Start(FCoroutineExecutor*) override
 			{
 				m_Timer = m_TargetTime;
@@ -106,7 +174,10 @@ namespace ACETeam_Coroutines
 			int m_Frames;
 			int m_TargetFrames;
 		public:
-			FFrameTimer(int TargetFrames): m_TargetFrames (TargetFrames) {}
+			explicit FFrameTimer(int TargetFrames): m_TargetFrames(TargetFrames)
+			{
+			}
+
 			virtual EStatus Start(FCoroutineExecutor*) override
 			{
 				m_Frames = m_TargetFrames+1;
@@ -222,34 +293,40 @@ namespace ACETeam_Coroutines
 		};
 	}
 
+	//Runs its arguments in sequence until one returns false
 	template<typename ...TChildren>
 	FCoroutineNodePtr _Seq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSequence>(Children...);
 	}
 
+	//Runs its arguments in parallel until one completes
 	template<typename ...TChildren>
 	FCoroutineNodePtr _Race(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FRace>(Children...);
 	}
 
+	//Runs its arguments in parallel until all complete
 	template<typename ...TChildren>
 	FCoroutineNodePtr _Sync(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSync>(Children...);
 	}
 
+	//Waits for the specified time
 	inline FCoroutineNodePtr _Wait(float Time)
 	{
 		return MakeShared<Detail::FTimer>(Time);
 	}
 
+	//Waits for the specified number of frames
 	inline FCoroutineNodePtr _WaitFrames(int Frames)
 	{
 		return MakeShared<Detail::FFrameTimer>(Frames);
 	}
 
+	//Loops its child, evaluating at most once per execution step
 	template<typename TChild>
 	FCoroutineNodePtr _Loop(TChild Body)
 	{
@@ -258,12 +335,27 @@ namespace ACETeam_Coroutines
 		return Loop;
 	}
 
+	//Shortcut for looping a sequence, similar to a do-while
+	template<typename ...TChildren>
+	FCoroutineNodePtr _LoopSeq(TChildren... Children)
+	{
+		auto Seq = _Seq(Children...);
+		return _Loop(Seq);
+	}
+
+	//Used to execute some code when the execution scope exits, similar to a destructor
+	//Usage example:
+	//_Scope([] { UE_LOG(LogTemp, Log, TEXT("Child finished or aborted");})
+	//(
+	//  ... child
+	//)
 	template<typename TOnScopeExit>
 	Detail::TScopeHelper<TOnScopeExit> _Scope(TOnScopeExit&& OnScopeExit)
 	{
 		return Detail::TScopeHelper<TOnScopeExit>(OnScopeExit);
 	}
 
+	//Forks another execution line. The result of executing the child will not affect the original execution.
 	template<typename TChild>
 	FCoroutineNodePtr _Fork(TChild Body)
 	{

@@ -125,35 +125,4 @@ namespace ACETeam_Coroutines
 
 		void ForceNodeEnd(FCoroutineNodePtr const& Node, EStatus Status) { ForceNodeEnd(Node.Get(), Status); }
 	};
-
-	namespace Detail
-	{
-		template <typename TLambda>
-		class TDeferredCoroutineWrapper : public FCoroutineNode
-		{
-			TLambda m_Lambda;
-			FCoroutineNodePtr m_Child;
-		public:
-			TDeferredCoroutineWrapper (TLambda const& Lambda) : m_Lambda(Lambda) {}
-			virtual EStatus Start(FCoroutineExecutor* Executor) override
-			{
-				m_Child = m_Lambda();
-				Executor->EnqueueCoroutineNode(m_Child,this);
-				return Suspended; 
-			}
-			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override { return Status; }
-			virtual void End(FCoroutineExecutor* Executor, EStatus Status) override
-			{
-				if (Status == Aborted)
-				{
-					Executor->AbortNode(m_Child);
-				}
-			};
-		};
-	}
-
-	//Make a simple coroutine out of a function, functor or lambda that returns a coroutine pointer
-	template <typename TLambda>
-	FCoroutineNodePtr _Deferred(TLambda& Lambda) { return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda> >(Lambda); }
-	
 }
