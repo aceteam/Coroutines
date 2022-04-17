@@ -70,7 +70,7 @@ namespace Detail
 	{
 		if (Status == Failed)
 			m_EndStatus = Failed;
-		if (m_ClosedCount == m_Children.Num())
+		if (++m_ClosedCount == m_Children.Num())
 		{
 			return m_EndStatus;
 		}
