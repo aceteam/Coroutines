@@ -60,7 +60,13 @@ namespace ACETeam_Coroutines
 		void EnqueueCoroutine(FCoroutineNodePtr const& Coroutine);
 
 		bool IsInstant() const { return m_bInstantMode; }
+		
 		int StepCount() const { return m_StepCount; }
+		
+		bool HasRemainingWork() const
+		{
+			return m_ActiveNodes.Num() > 1 || m_SuspendedNodes.Num() > 0;
+		}
 
 		//Runs enqueued coroutines instantly until all finish their work
 		//Use with caution, and make sure all custom time-sensitive decorators used are aware of instant mode

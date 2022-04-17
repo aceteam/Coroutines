@@ -38,7 +38,6 @@ void ACoroutineTest::BeginPlay()
 							UE_LOG(LogTemp, Log, TEXT("Waiting for %.2f"), 1.0f - Diff);
 							return _Wait(1.0f - Diff);
 						},
-						//_Wait(1.0f),
 						[=, Counter = 0]() mutable 
 						{
 							UE_LOG(LogTemp, Log, TEXT("Hi %s"), *GetName());
