@@ -52,6 +52,11 @@ namespace ACETeam_Coroutines
 				m_Child.Reset(); //Child has finished its execution, so it can be released
 			};
 		};
+
+		class ACETEAM_COROUTINES_API FErrorNode : public FCoroutineNode
+		{
+			virtual EStatus Start(FCoroutineExecutor* Exec) override;
+		};
 	}
 
 	//Make a simple task out of a function, functor or lambda
@@ -68,13 +73,16 @@ namespace ACETeam_Coroutines
 		return MakeShared<Detail::FConditionLambdaCoroutine<F> >(f);
 	}
 
-	//Make a simple coroutine out of a function, functor or lambda that returns a coroutine pointer
+	//Make a simple coroutine node out of a function, functor or lambda that returns a coroutine node pointer
 	template <typename TLambda>
 	FCoroutineNodePtr _Deferred(TLambda& Lambda)
 	{
 		return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda> >(Lambda);
 	}
-	
+
+	//Convenience node that returns an instant failure
+	FCoroutineNodePtr ACETEAM_COROUTINES_API _Error();
+
 	namespace Detail
 	{
 		class ACETEAM_COROUTINES_API FCoroutineDecorator : public FCoroutineNode

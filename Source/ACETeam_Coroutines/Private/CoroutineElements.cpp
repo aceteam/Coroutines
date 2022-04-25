@@ -131,5 +131,15 @@ namespace Detail
 		}
 		return Running;
 	}
+
+	EStatus FErrorNode::Start(FCoroutineExecutor* Exec)
+	{
+		return Failed;
+	}
+}
+
+FCoroutineNodePtr _Error()
+{
+	return MakeShared<Detail::FErrorNode>();
 }
 }
