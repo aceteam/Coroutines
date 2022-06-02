@@ -12,7 +12,8 @@ enum EStatus
 	Aborted = 1<<5,
 };
 class FCoroutineNode;
-typedef TSharedPtr<FCoroutineNode> FCoroutineNodePtr;
+constexpr ESPMode DefaultSPMode = ESPMode::NotThreadSafe;
+typedef TSharedPtr<FCoroutineNode, DefaultSPMode> FCoroutineNodePtr;
 
 class FCoroutineExecutor;
 

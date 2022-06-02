@@ -140,6 +140,6 @@ namespace Detail
 
 FCoroutineNodePtr _Error()
 {
-	return MakeShared<Detail::FErrorNode>();
+	return MakeShared<Detail::FErrorNode, DefaultSPMode>();
 }
 }

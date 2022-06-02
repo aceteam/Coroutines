@@ -63,21 +63,21 @@ namespace ACETeam_Coroutines
 	template <typename F>
 	FCoroutineNodePtr _Lambda(F const & f)
 	{
-		return MakeShared<Detail::FLambdaCoroutine<F> >(f);
+		return MakeShared<Detail::FLambdaCoroutine<F>, DefaultSPMode>(f);
 	}
 
 	//Make a simple task out of a function, functor or lambda
 	template <typename F>
 	FCoroutineNodePtr _ConditionalLambda(F const & f)
 	{
-		return MakeShared<Detail::FConditionLambdaCoroutine<F> >(f);
+		return MakeShared<Detail::FConditionLambdaCoroutine<F>, DefaultSPMode>(f);
 	}
 
 	//Make a simple coroutine node out of a function, functor or lambda that returns a coroutine node pointer
 	template <typename TLambda>
 	FCoroutineNodePtr _Deferred(TLambda& Lambda)
 	{
-		return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda> >(Lambda);
+		return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Lambda);
 	}
 
 	//Convenience node that returns an instant failure
@@ -225,7 +225,7 @@ namespace ACETeam_Coroutines
 		};
 
 		template<typename TCoroutine>
-		inline void AddCoroutineChild(TSharedRef<TCoroutine>& Composite, FCoroutineNodePtr& First)
+		inline void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, FCoroutineNodePtr& First)
 		{
 			Composite->AddChild(First);
 		}
@@ -233,7 +233,7 @@ namespace ACETeam_Coroutines
 		template <typename TCoroutine, typename TLambda, typename TLambdaRetType = void>
 		struct TAddCompositeChildHelper
 		{
-			void operator()(TSharedRef<TCoroutine>& Composite, TLambda& First)
+			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
 				Composite->AddChild(_Lambda(First));
 			}
@@ -242,7 +242,7 @@ namespace ACETeam_Coroutines
 		template <typename TCoroutine, typename TLambda>
 		struct TAddCompositeChildHelper<TCoroutine, TLambda, bool>
 		{
-			void operator()(TSharedRef<TCoroutine>& Composite, TLambda& First)
+			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
 				Composite->AddChild(_ConditionalLambda(First));
 			}
@@ -251,26 +251,26 @@ namespace ACETeam_Coroutines
 		template <typename TCoroutine, typename TLambda>
 		struct TAddCompositeChildHelper<TCoroutine, TLambda, FCoroutineNodePtr>
 		{
-			void operator()(TSharedRef<TCoroutine>& Composite, TLambda& First)
+			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
 				Composite->AddChild(_Deferred(First));
 			}
 		};
 
 		template <typename TCoroutine, typename TLambda>
-		void AddCoroutineChild(TSharedRef<TCoroutine>& Composite, TLambda& First)
+		void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 		{
 			TAddCompositeChildHelper<TCoroutine, TLambda, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>()(Composite, First);
 		}
 
 		template <typename TChild>
-		void AddCompositeChildren(TSharedRef<FCompositeCoroutine>& Composite, TChild& Child)
+		void AddCompositeChildren(TSharedRef<FCompositeCoroutine, DefaultSPMode>& Composite, TChild& Child)
 		{
 			AddCoroutineChild(Composite, Child);
 		}
 		
 		template<typename TChild, typename... TChildren>
-		void AddCompositeChildren(TSharedRef<FCompositeCoroutine>& Composite, TChild& First, TChildren... Children)
+		void AddCompositeChildren(TSharedRef<FCompositeCoroutine, DefaultSPMode>& Composite, TChild& First, TChildren... Children)
 		{
 			AddCoroutineChild(Composite, First);
 			AddCompositeChildren(Composite, Children...);
@@ -279,7 +279,7 @@ namespace ACETeam_Coroutines
 		template<typename TComposite, typename... TChildren>
 		FCoroutineNodePtr MakeComposite(TChildren... Children)
 		{
-			auto Comp = StaticCastSharedRef<FCompositeCoroutine>(MakeShared<TComposite>());
+			auto Comp = StaticCastSharedRef<FCompositeCoroutine>(MakeShared<TComposite, DefaultSPMode>());
 			AddCompositeChildren(Comp, Children...);
 			return Comp;
 		}
@@ -294,7 +294,7 @@ namespace ACETeam_Coroutines
 			template <typename TChild>
 			FCoroutineNodePtr operator() (TChild&& ScopeBody)
 			{
-				auto Scope = MakeShared<TScope<TScopeLambda>>(m_ScopeLambda);
+				auto Scope = MakeShared<TScope<TScopeLambda>, DefaultSPMode>(m_ScopeLambda);
 				AddCoroutineChild(Scope, ScopeBody);
 				return Scope;
 			}
@@ -325,20 +325,20 @@ namespace ACETeam_Coroutines
 	//Waits for the specified time
 	inline FCoroutineNodePtr _Wait(float Time)
 	{
-		return MakeShared<Detail::FTimer>(Time);
+		return MakeShared<Detail::FTimer, DefaultSPMode>(Time);
 	}
 
 	//Waits for the specified number of frames
 	inline FCoroutineNodePtr _WaitFrames(int Frames)
 	{
-		return MakeShared<Detail::FFrameTimer>(Frames);
+		return MakeShared<Detail::FFrameTimer, DefaultSPMode>(Frames);
 	}
 
 	//Loops its child, evaluating at most once per execution step
 	template<typename TChild>
 	FCoroutineNodePtr _Loop(TChild Body)
 	{
-		auto Loop = MakeShared<Detail::FLoop>();
+		auto Loop = MakeShared<Detail::FLoop, DefaultSPMode>();
 		Detail::AddCoroutineChild(Loop, Body);
 		return Loop;
 	}
@@ -367,7 +367,7 @@ namespace ACETeam_Coroutines
 	template<typename TChild>
 	FCoroutineNodePtr _Fork(TChild Body)
 	{
-		auto Fork = MakeShared<Detail::FFork>();
+		auto Fork = MakeShared<Detail::FFork, DefaultSPMode>();
 		Detail::AddCoroutineChild(Fork, Body);
 		return Fork;
 	}

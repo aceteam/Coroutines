@@ -55,6 +55,7 @@ namespace ACETeam_Coroutines
 	
 	public:
 		FCoroutineExecutor();
+		~FCoroutineExecutor(){}
 
 		//This is the main entry point for running a coroutine on an executor
 		void EnqueueCoroutine(FCoroutineNodePtr const& Coroutine);
