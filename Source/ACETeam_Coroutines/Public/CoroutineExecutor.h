@@ -50,7 +50,7 @@ namespace ACETeam_Coroutines
 		{
 			FCoroutineNode* m_Node;
 			NodeIs(FCoroutineNode* Node) : m_Node(Node) {}
-			bool operator() (FNodeExecInfo const& t) { return t.Node.Get() == m_Node; }
+			bool operator() (FNodeExecInfo const& t) { return t.Status != Aborted && t.Node.Get() == m_Node; }
 		};
 	
 	public:
