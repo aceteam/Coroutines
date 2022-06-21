@@ -99,14 +99,15 @@ _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 - **_Fork**: Spawns a separate execution branch for the contained element. If the original branch is aborted, it will not affect this spawned branch.
 - **_Weak**: Used to indicate a lambda should not be evaluated if an associated UObject is no longer valid
 
-Any of the previous building blocks can receive an argument of 4 possible types:
+#### Any of the previous building blocks can receive an argument of 4 possible types:
 1. A coroutine node (which is also the return type of any of these blocks)
 2. A lambda with no return value.
 3. A lambda with boolean return value. This is especially useful for terminating _Loop blocks
 4. A lambda that returns a coroutine node. This allows deferring of the creation of a subcoroutine until execution reaches this lambda.
 
-None of the lambdas should receive arguments. You can omit the () except in the case of mutable lambdas
-You should only use capture by copy in these lambdas unless you're absolutely certain the lifetime of an object captured by reference will completely overlap the lifetime of your entire coroutine's execution.
+None of the lambdas should receive arguments. You can omit the () except in the case of mutable lambdas, where it's required by the compiler.
+
+**IMPORTANT:** You should only use capture by copy in these lambdas unless you're absolutely certain the lifetime of an object captured by reference will completely overlap the lifetime of your entire coroutine's execution.
 
 ## Future work planned
 A feature that **SkookumScript** had and this implementation is lacking is waiting on events, which can also pass parameters.
