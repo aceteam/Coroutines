@@ -10,21 +10,59 @@ namespace ACETeam_Coroutines
 	namespace Detail
 	{
 		template <typename TLambda>
-		class FLambdaCoroutine: public FCoroutineNode
+		class TLambdaCoroutine: public FCoroutineNode
 		{
 			TLambda	m_Lambda;
 		public:
-			FLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda){}
+			TLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda){}
 			virtual EStatus Start(FCoroutineExecutor*) override { m_Lambda(); return Completed;}
 		};
 
 		template <typename TLambda>
-		class FConditionLambdaCoroutine : public FCoroutineNode
+		class TWeakLambdaCoroutine: public FCoroutineNode
+		{
+			FWeakObjectPtr m_Object;
+			TLambda	m_Lambda;
+		public:
+			TWeakLambdaCoroutine (UObject* Obj, TLambda const & Lambda)
+				: m_Object(Obj)
+				, m_Lambda(Lambda){}
+			virtual EStatus Start(FCoroutineExecutor*) override
+			{
+				if (m_Object.IsValid())
+				{
+					m_Lambda();
+				}
+				return Completed;
+			}
+		};
+
+		template <typename TLambda>
+		class TConditionLambdaCoroutine : public FCoroutineNode
 		{
 			TLambda m_Lambda;
 		public:
-			FConditionLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda) {}
+			TConditionLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda) {}
 			virtual EStatus Start(FCoroutineExecutor*) override { return m_Lambda() ? Completed : Failed; }
+		};
+
+		template <typename TLambda>
+		class TWeakConditionLambdaCoroutine: public FCoroutineNode
+		{
+			FWeakObjectPtr m_Object;
+			TLambda	m_Lambda;
+		public:
+			TWeakConditionLambdaCoroutine (UObject* Obj, TLambda const & Lambda)
+				: m_Object(Obj)
+				, m_Lambda(Lambda){}
+			virtual EStatus Start(FCoroutineExecutor*) override
+			{
+				if (m_Object.IsValid())
+				{
+					return m_Lambda() ? Completed : Failed;
+				}
+				return Failed;
+			}
 		};
 		
 		template <typename TLambda>
@@ -53,31 +91,28 @@ namespace ACETeam_Coroutines
 			};
 		};
 
+		template <typename TLambda>
+		class TWeakDeferredCoroutineWrapper : public TDeferredCoroutineWrapper<TLambda>
+		{
+			FWeakObjectPtr m_Object;
+			TWeakDeferredCoroutineWrapper (UObject* Obj, TLambda const& Lambda)
+			: TDeferredCoroutineWrapper(Lambda)
+			, m_Object(Obj){}
+
+			virtual EStatus Start(FCoroutineExecutor* Executor) override
+			{
+				if (m_Object.IsValid())
+				{
+					return TDeferredCoroutineWrapper<TLambda>::Start(Executor);
+				}
+				return Completed;
+			}
+		};
+
 		class ACETEAM_COROUTINES_API FErrorNode : public FCoroutineNode
 		{
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 		};
-	}
-
-	//Make a simple task out of a function, functor or lambda
-	template <typename F>
-	FCoroutineNodePtr _Lambda(F const & f)
-	{
-		return MakeShared<Detail::FLambdaCoroutine<F>, DefaultSPMode>(f);
-	}
-
-	//Make a simple task out of a function, functor or lambda
-	template <typename F>
-	FCoroutineNodePtr _ConditionalLambda(F const & f)
-	{
-		return MakeShared<Detail::FConditionLambdaCoroutine<F>, DefaultSPMode>(f);
-	}
-
-	//Make a simple coroutine node out of a function, functor or lambda that returns a coroutine node pointer
-	template <typename TLambda>
-	FCoroutineNodePtr _Deferred(TLambda& Lambda)
-	{
-		return MakeShared<Detail::TDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Lambda);
 	}
 
 	//Convenience node that returns an instant failure
@@ -235,7 +270,7 @@ namespace ACETeam_Coroutines
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
-				Composite->AddChild(_Lambda(First));
+				Composite->AddChild(MakeShared<Detail::TLambdaCoroutine<TLambda>, DefaultSPMode>(First));
 			}
 		};
 
@@ -244,7 +279,7 @@ namespace ACETeam_Coroutines
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
-				Composite->AddChild(_ConditionalLambda(First));
+				Composite->AddChild(MakeShared<Detail::TConditionLambdaCoroutine<TLambda>, DefaultSPMode>(First));
 			}
 		};
 
@@ -253,7 +288,7 @@ namespace ACETeam_Coroutines
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
-				Composite->AddChild(_Deferred(First));
+				Composite->AddChild(MakeShared<Detail::TDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(First));
 			}
 		};
 
@@ -370,5 +405,41 @@ namespace ACETeam_Coroutines
 		auto Fork = MakeShared<Detail::FFork, DefaultSPMode>();
 		Detail::AddCoroutineChild(Fork, Body);
 		return Fork;
+	}
+
+	namespace Detail
+	{
+		template <typename TLambda, typename TLambdaRetType = void>
+		struct TAddWeakLambdaHelper
+		{
+			FCoroutineNodePtr operator()(UObject* Obj, TLambda& Lambda)
+			{
+				return MakeShared<Detail::TWeakLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
+			}
+		};
+
+		template <typename TLambda>
+		struct TAddWeakLambdaHelper<TLambda, bool>
+		{
+			FCoroutineNodePtr operator()(UObject* Obj, TLambda& Lambda)
+			{
+				return MakeShared<Detail::TWeakConditionLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
+			}
+		};
+
+		template <typename TLambda>
+		struct TAddWeakLambdaHelper<TLambda, FCoroutineNodePtr>
+		{
+			FCoroutineNodePtr operator()(UObject* Obj, TLambda& Lambda)
+			{
+				return MakeShared<Detail::TWeakDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Obj, Lambda);
+			}
+		};
+	}
+
+	template<typename TLambda>
+	FCoroutineNodePtr _Weak(UObject* Obj, TLambda Lambda)
+	{
+		return Detail::TAddWeakLambdaHelper<TLambda, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>()(Obj, Lambda);
 	}
 }
