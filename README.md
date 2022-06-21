@@ -1,28 +1,18 @@
 # ACE Team Coroutines Plugin for Unreal Engine
-
-This plugin was developed for the purpose of having an easy way to write routines that handle control flow spread across multiple frames in a robust and interruptible way. It's useful for scheduling async operations, reactive AI (e.g. behavior trees), animated visualizations, and other operations which you might want to spread over several frames.
+This plugin was developed for the purpose of having an easy way to write C++ routines that handle control flow spread across multiple frames in a robust and interruptible way. It's useful for scheduling async operations, reactive AI (e.g. behavior trees), animated visualizations, and other operations which you might want to spread over several frames.
 
 It's significantly simpler to write non-trivial logic across several frames using this system than it is using FTimerManager and other similar mechanisms.
 
-Full disclosure: It hasn't been used in production of any of our games yet, but it is based on a lot of experience gathered on several similar systems I ([@daniel-amthauer](https://github.com/daniel-amthauer)) have worked on along the years.
-
-
-## Background
-Our experience with [**SkookumScript**](https://github.com/EpicSkookumScript/SkookumScript-Plugin) during development of [**The Eternal Cylinder**](https://www.eternalcylinder.com) proved that it was very useful to have the expressive power to easily spread out control flow over several frames, but the dwindling support for the plugin after Epic's acquisition made it too difficult to maintain across Unreal Engine versions.
-
-Also the addition of live coding made it viable to have fairly quick iteration times from C++.
-
-The combination of these two factors led us to seek an implementation that captured most of the capabilities of **SkookumScript** without requiring a separate scripting language, and a very complex hard to maintain codebase.
+The nomenclature and feature set of this plugin was inspired by [**SkookumScript**](https://github.com/EpicSkookumScript/SkookumScript-Plugin) and the use we gave it during development of [**The Eternal Cylinder**](https://www.eternalcylinder.com).
 
 ## Basic Usage
-
-As in any other C++ module, you need to add the "ACETeam_Coroutines" module to the list of dependencies of your module's .Build.cs file
+As with any other C++ module, you need to add the **"ACETeam_Coroutines"** module to the list of dependencies of your module's .Build.cs file
 
 It's recommended that you include the following headers:
 - CoroutineElements.h to have access to the building blocks for your coroutines.
 - CoroutinesSubsystem.h for a simple way to run your coroutine. The UCoroutinesSubsystem can execute coroutines in any circumstance. Even in the editor while it's not in play mode.
 
-For simplicity you can add a using namespace declaration so you don't have to preface coroutine elements with the ACETeam_Coroutines namespace.
+For simplicity you can add a "using namespace" declaration so you don't have to preface coroutine elements with the ACETeam_Coroutines namespace.
 
 Many of the features of the system are explored in the following code sample:
 
@@ -38,15 +28,22 @@ using namespace ACETeam_Coroutines;
 
 FCoroutineNodePtr _CoroutineTest(UWorld* World, FString TextToLog)
 {
+    //Shared ptr values can be used to share data between different execution branches,
+    // or different steps in your coroutine
+    //This way they're guaranteed to share the same lifetime as the code that's using them
     auto SharedValue = MakeShared<int>(0);
-    //_Seq concatenates coroutine elements in a sequence. It runs one after the other until one of them fails
-    //If one of them finishes during a frame, the next in the sequence will be evaluated in the same frame
+    //_Seq concatenates coroutine elements in a sequence. It runs one after the other until
+    // one of them fails
+    //If one of them finishes during a frame, the next in the sequence will be evaluated
+    // in the same frame
     return _Seq(
-        //_Race evaluates each of its contained elements once per frame, in the declared order, until one finishes its execution (successfully or unsuccessfully)
+        //_Race evaluates each of its contained elements once per frame, in the declared order, until
+        // one finishes its execution (successfully or unsuccessfully)
         _Race(
             //a _Loop will run its contained element once per frame, until it fails or is aborted
             _Loop(
-                //_Weak creates an element that will only evaluate its lambda if the passed in object is valid on evaluation
+                //_Weak creates an element that will only evaluate its lambda if the passed in
+                // object is valid on evaluation
                 _Weak(World, [] { DrawDebugPoint(World, FVector::ZeroVector, 10, FColor::White); })
             ),
             //_LoopSeq is a shortcut for a _Loop containing a _Seq
@@ -57,6 +54,7 @@ FCoroutineNodePtr _CoroutineTest(UWorld* World, FString TextToLog)
                     UE_LOG(LogTemp, Log, TEXT("This text will print once per second"));
                     UE_LOG(LogTemp, Log, TEXT("This parameter was captured by value %s"), *TextToLog);
                 },
+                //mutable lambdas can be used to have local variables that share their lifetime
                 [Counter = 0] () mutable {
                     //When this returns false, the containing loop will finish
                     return ++Counter <= 10;
@@ -91,7 +89,7 @@ The prefixed **_** before each Coroutine is a convention inspired by ***SkookumS
 - **_WaitFrames**: Pauses execution of its branch for the specified number of frames.
 - **_Loop**: Evaluates its contained element once per frame, until it fails.
 - **_LoopSeq**: Shortcut for _Loop containing a _Seq
-- **_Scope**: Executes its first argument when the contained execution branch stops executing for any reason
+- **_Scope**: Executes the lambda contained within its first set of parentheses when the contained execution branch stops executing for any reason.
 ```c++
 _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 (
@@ -100,3 +98,17 @@ _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 ```
 - **_Fork**: Spawns a separate execution branch for the contained element. If the original branch is aborted, it will not affect this spawned branch.
 - **_Weak**: Used to indicate a lambda should not be evaluated if an associated UObject is no longer valid
+
+Any of the previous building blocks can receive an argument of 4 possible types:
+1. A coroutine node (which is also the return type of any of these blocks)
+2. A lambda with no return value.
+3. A lambda with boolean return value. This is especially useful for terminating _Loop blocks
+4. A lambda that returns a coroutine node. This allows deferring of the creation of a subcoroutine until execution reaches this lambda.
+
+None of the lambdas should receive arguments. You can omit the () except in the case of mutable lambdas
+You should only use capture by copy in these lambdas unless you're absolutely certain the lifetime of an object captured by reference will completely overlap the lifetime of your entire coroutine's execution.
+
+## Future work planned
+A feature that **SkookumScript** had and this implementation is lacking is waiting on events, which can also pass parameters.
+This allows coroutines to receive data asynchronously from non-coroutine systems, or other coroutines.
+This can currently only be emulated with _Loops and shared variables, which is not as readable or performant.
