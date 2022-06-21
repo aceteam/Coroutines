@@ -9,7 +9,7 @@
 
 /**
  * Simple subsystem that allows running coroutines from anywhere
- * Usage example: UCoroutinesSubsystem::Get().AddCoroutine(<coroutine>);
+ * Usage example: UCoroutinesSubsystem::Get().StartCoroutine(<coroutine>);
  *
  * Ticks only while a coroutine is active, and steps through them on the main thread.
  */
@@ -21,7 +21,7 @@ class ACETEAM_COROUTINES_API UCoroutinesSubsystem : public UEngineSubsystem
 public:
 	static UCoroutinesSubsystem& Get();
 
-	void AddCoroutine(ACETeam_Coroutines::FCoroutineNodePtr const& Coroutine);
+	void StartCoroutine(ACETeam_Coroutines::FCoroutineNodePtr const& Coroutine);
 
 private:
 	ACETeam_Coroutines::FCoroutineExecutor Executor;

@@ -12,7 +12,7 @@ UCoroutinesSubsystem& UCoroutinesSubsystem::Get()
 	return *System;
 }
 
-void UCoroutinesSubsystem::AddCoroutine(ACETeam_Coroutines::FCoroutineNodePtr const& Coroutine)
+void UCoroutinesSubsystem::StartCoroutine(ACETeam_Coroutines::FCoroutineNodePtr const& Coroutine)
 {
 	Executor.EnqueueCoroutine(Coroutine);
 	if (!TickerHandle.IsValid())
