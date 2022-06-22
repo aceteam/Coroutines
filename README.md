@@ -85,8 +85,8 @@ The prefixed **_** before each Coroutine is a convention inspired by ***SkookumS
 
 ## Full List of Coroutine Elements:
 - **_Seq**: Concatenates coroutine elements in a sequence. It runs one after the other until one of them fails.
-- **_Race**: Evaluates each of its contained elements once per frame, in the declared order, until one finishes its execution (successfully or unsuccessfully). 
-- **_Sync**: Evaluates each of its contained elements once per frame, in the declared order, until all of them have finished their execution. If one of them failed during execution, the end result will be a failure
+- **_Race**: Spawns an execution branch for each of its contained elements, in the declared order. Aborts any running branches when one finishes its execution (successfully or unsuccessfully).
+- **_Sync**: Spawns an execution branch for each of its contained elements, in the declared order. Waits for all of them to finish their execution. If one of them failed during execution, the end result will be a failure.
 - **_Wait**: Pauses execution of its branch for the specified time.
 - **_WaitFrames**: Pauses execution of its branch for the specified number of frames.
 - **_Loop**: Evaluates its contained element once per frame, until it fails.
@@ -98,8 +98,8 @@ _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 ...
 )
 ```
-- **_Fork**: Spawns a separate execution branch for the contained element. If the original branch is aborted, it will not affect this spawned branch.
-- **_Weak**: Used to indicate a lambda should not be evaluated if an associated UObject is no longer valid
+- **_Fork**: Spawns an independent execution branch for the contained element. This means if the original branch is aborted, it will not affect this spawned branch.
+- **_Weak**: Used to indicate a lambda should not be evaluated if an associated UObject is no longer valid. Returns a failure if the lambda has a return type.
 
 #### Any of the previous building blocks can receive an argument of 4 possible types:
 1. A coroutine node (which is also the return type of any of these blocks)
