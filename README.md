@@ -39,8 +39,8 @@ FCoroutineNodePtr _CoroutineTest(UWorld* World, FString TextToLog)
     //If one of them finishes during a frame, the next in the sequence will be evaluated
     // in the same frame
     return _Seq(
-        //_Race evaluates each of its contained elements once per frame, in the declared order, until
-        // one finishes its execution (successfully or unsuccessfully)
+        //_Race starts an execution branch for each of its contained elements, in the declared order.
+        // Aborts any running branches when one finishes its execution (successfully or unsuccessfully).
         _Race(
             //a _Loop will run its contained element once per frame, until it fails or is aborted
             _Loop(
