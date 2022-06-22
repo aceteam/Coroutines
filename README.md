@@ -1,7 +1,9 @@
 # ACE Team Coroutines Plugin for Unreal Engine
-This plugin was developed for the purpose of having an easy way to write C++ routines that handle control flow spread across multiple frames in a robust and interruptible way. It's useful for scheduling async operations, reactive AI (e.g. behavior trees), animated visualizations, and other operations which you might want to spread over several frames.
+If you're familiar with Unity's coroutines and ever wanted something similar to use with Unreal Engine from C++, this plugin does exactly that, but with a broader feature set.
 
-It's significantly simpler to write non-trivial logic across several frames using this system than it is using FTimerManager and other similar mechanisms.
+Compared to Unity's coroutines, this system makes it much simpler to compose coroutines, so one can wait for another, run in parallel or interrupt another.
+
+If you're unfamiliar with coroutines, they are a way to write code in a way that is similar to a function, but it doesn't have to be executed all at once. It can be suspended at certain points and continue its execution in later frames.
 
 The nomenclature and feature set of this plugin was inspired by [**SkookumScript**](https://github.com/EpicSkookumScript/SkookumScript-Plugin) and the use we gave it during development of [**The Eternal Cylinder**](https://www.eternalcylinder.com).
 
