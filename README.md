@@ -7,6 +7,11 @@ If you're unfamiliar with coroutines, they are a way to write code in a way that
 
 The nomenclature and feature set of this plugin was inspired by [**SkookumScript**](https://github.com/EpicSkookumScript/SkookumScript-Plugin) and the use we gave it during development of [**The Eternal Cylinder**](https://www.eternalcylinder.com).
 
+## Alternatives
+Be sure to check out other plugins that approach this problem differently. There are a couple of cool ones that make use of C++ 20 coroutine support:
+- [SquidTasks](https://github.com/westquote/SquidTasks)
+- [UE5Coro](https://github.com/landelare/ue5coro)
+
 ## Basic Usage
 As with any other C++ module, you need to add the **"ACETeam_Coroutines"** module to the list of dependencies of your module's .Build.cs file
 
