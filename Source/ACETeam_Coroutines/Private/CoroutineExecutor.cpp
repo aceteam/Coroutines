@@ -119,7 +119,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info
 void ACETeam_Coroutines::FCoroutineExecutor::Cleanup()
 {
 	auto Pred = [](FNodeExecInfo const& Info) { return Info.Status == Aborted; };
-	m_SuspendedNodes.RemoveAll(Pred);
+	m_SuspendedNodes.RemoveAllSwap(Pred);
 }
 
 void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
