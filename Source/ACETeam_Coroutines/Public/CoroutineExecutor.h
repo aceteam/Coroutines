@@ -50,7 +50,7 @@ namespace ACETeam_Coroutines
 		{
 			FCoroutineNode* m_Node;
 			NodeIs(FCoroutineNode* Node) : m_Node(Node) {}
-			bool operator() (FNodeExecInfo const& t) { return t.Status != Aborted && t.Node.Get() == m_Node; }
+			bool operator() (FNodeExecInfo const& t) const { return t.Node.Get() == m_Node && t.Status != Aborted; }
 		};
 	
 	public:
@@ -74,7 +74,7 @@ namespace ACETeam_Coroutines
 		void RunInstant()
 		{
 			m_bInstantMode = true;
-			while (m_ActiveNodes.Num() > 1)
+			while (HasRemainingWork())
 			{
 				Step(0.0f);
 			}
