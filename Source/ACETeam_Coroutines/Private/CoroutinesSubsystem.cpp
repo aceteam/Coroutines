@@ -17,7 +17,12 @@ void UCoroutinesSubsystem::StartCoroutine(ACETeam_Coroutines::FCoroutineNodePtr 
 	Executor.EnqueueCoroutine(Coroutine);
 	if (!TickerHandle.IsValid())
 	{
-		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [=](float DeltaSeconds)
+#if ENGINE_MAJOR_VERSION > 4 || ENGINE_MINOR_VERSION > 27
+		TickerHandle = FTSTicker::GetCoreTicker()
+#else
+		TickerHandle = FTicker::GetCoreTicker()
+#endif
+		.AddTicker(FTickerDelegate::CreateWeakLambda(this, [=](float DeltaSeconds)
 		{
 			Executor.Step(DeltaSeconds);
 			if (Executor.HasRemainingWork())

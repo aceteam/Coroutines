@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "CoroutineExecutor.h"
 #include "CoroutineNode.h"
+#include "Launch/Resources/Version.h"
 #include "CoroutinesSubsystem.generated.h"
 
 /**
@@ -25,5 +26,9 @@ public:
 
 private:
 	ACETeam_Coroutines::FCoroutineExecutor Executor;
+#if ENGINE_MAJOR_VERSION > 4 || ENGINE_MINOR_VERSION > 27
 	FTSTicker::FDelegateHandle TickerHandle;
+#else
+	FDelegateHandle TickerHandle;
+#endif
 };
