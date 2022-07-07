@@ -14,6 +14,7 @@ enum EStatus
 class FCoroutineNode;
 constexpr ESPMode DefaultSPMode = ESPMode::NotThreadSafe;
 typedef TSharedPtr<FCoroutineNode, DefaultSPMode> FCoroutineNodePtr;
+typedef TSharedRef<FCoroutineNode, DefaultSPMode> FCoroutineNodeRef;
 
 class FCoroutineExecutor;
 

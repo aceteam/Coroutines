@@ -4,6 +4,7 @@
 
 #include "CoroutineElements.h"
 #include "CoroutinesSubsystem.h"
+#include "DrawDebugHelpers.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, ACETeam_CoroutinesTest)
 
@@ -15,7 +16,7 @@ ACoroutineTest::ACoroutineTest()
 
 PRAGMA_DISABLE_OPTIMIZATION
 using namespace ACETeam_Coroutines;
-FCoroutineNodePtr _CoroutineTest(UWorld* World, FString TextToLog)
+FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
 {
     //Shared ptr values can be used to share data between different execution branches,
     // or different steps in your coroutine

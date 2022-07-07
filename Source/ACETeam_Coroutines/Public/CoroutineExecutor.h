@@ -58,7 +58,7 @@ namespace ACETeam_Coroutines
 		~FCoroutineExecutor(){}
 
 		//This is the main entry point for running a coroutine on an executor
-		void EnqueueCoroutine(FCoroutineNodePtr const& Coroutine);
+		void EnqueueCoroutine(FCoroutineNodeRef const& Coroutine);
 
 		bool IsInstant() const { return m_bInstantMode; }
 		
@@ -92,7 +92,7 @@ namespace ACETeam_Coroutines
 		// Use of this function should be limited to the handling of fatal errors
 		void AbortTree(FCoroutineNode* Coroutine);
 		
-		void AbortTree(FCoroutineNodePtr const& Coroutine) { AbortTree(Coroutine.Get()); }
+		void AbortTree(FCoroutineNodeRef const& Coroutine) { AbortTree(&Coroutine.Get()); }
 
 		enum class EFindNodeResult
 		{
@@ -102,13 +102,13 @@ namespace ACETeam_Coroutines
 			Aborted,
 		};
 		//Determines the status of a specific coroutine node in this executor
-		EFindNodeResult FindCoroutineNode(FCoroutineNodePtr const& Node);
+		EFindNodeResult FindCoroutineNode(FCoroutineNodeRef const& Node);
 
 		//~ Internal functions
 		
 		//Internal - Enqueues a coroutine node for execution as soon as possible, if this is done while the Executor's step is
 		//running this will be the next node to be evaluated.
-		void EnqueueCoroutineNode(FCoroutineNodePtr const& Node, FCoroutineNode* Parent);
+		void EnqueueCoroutineNode(FCoroutineNodeRef const& Node, FCoroutineNode* Parent);
 
 		// Internal - This function silently drops a coroutine node from the executor,
 		// only telling the node itself about it.
@@ -117,13 +117,13 @@ namespace ACETeam_Coroutines
 		// or it's an intermediate composite node that doesn't need to know because it will be aborted as well.
 		void AbortNode(FCoroutineNode* Node);
 
-		void AbortNode(FCoroutineNodePtr const& Node) { AbortNode(Node.Get()); }
+		void AbortNode(FCoroutineNodeRef const& Node) { AbortNode(&Node.Get()); }
 
 		// This function can be used to force a task to end outside of the normal functioning of the executor.
 		// For instance, a task whose only purpose is to wait suspended for something to happen can be notified in this
 		// way. Note however that any dependent tasks will not be updated until the executor's next step.
 		void ForceNodeEnd(FCoroutineNode* Node, EStatus Status);
 
-		void ForceNodeEnd(FCoroutineNodePtr const& Node, EStatus Status) { ForceNodeEnd(Node.Get(), Status); }
+		void ForceNodeEnd(FCoroutineNodeRef const& Node, EStatus Status) { ForceNodeEnd(&Node.Get(), Status); }
 	};
 }

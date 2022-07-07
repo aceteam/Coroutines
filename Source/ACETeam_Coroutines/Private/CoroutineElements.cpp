@@ -7,7 +7,7 @@ namespace ACETeam_Coroutines
 {
 namespace Detail
 {
-	void FCompositeCoroutine::AddChild( FCoroutineNodePtr const& Child )
+	void FCompositeCoroutine::AddChild( FCoroutineNodeRef const& Child )
 	{
 		m_Children.Add(Child);
 	}
@@ -81,9 +81,9 @@ namespace Detail
 	{
 		for (int i = m_Children.Num()-1; i >= 0; --i)
 		{
-			if (m_Children[i].Get() != Child)
+			if (&m_Children[i].Get() != Child)
 			{
-				Exec->AbortNode(m_Children[i].Get());
+				Exec->AbortNode(m_Children[i]);
 			}
 		}
 	}
@@ -91,18 +91,18 @@ namespace Detail
 	void FCoroutineDecorator::End( FCoroutineExecutor* Exec, EStatus Status )
 	{
 		if (Status == Aborted)
-			Exec->AbortNode(m_Child);
+			Exec->AbortNode(m_Child.ToSharedRef());
 	}
 
 	EStatus FCoroutineDecorator::Start( FCoroutineExecutor* Exec )
 	{
-		Exec->EnqueueCoroutineNode(m_Child, this);
+		Exec->EnqueueCoroutineNode(m_Child.ToSharedRef(), this);
 		return Suspended;
 	}
 
 	EStatus FFork::Start( FCoroutineExecutor* Exec )
 	{
-		Exec->EnqueueCoroutine(m_Child);
+		Exec->EnqueueCoroutine(m_Child.ToSharedRef());
 		return Completed;
 	}
 
@@ -138,7 +138,7 @@ namespace Detail
 	}
 }
 
-FCoroutineNodePtr _Error()
+FCoroutineNodeRef _Error()
 {
 	return MakeShared<Detail::FErrorNode, DefaultSPMode>();
 }

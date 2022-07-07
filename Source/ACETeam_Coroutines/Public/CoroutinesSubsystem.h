@@ -22,7 +22,7 @@ class ACETEAM_COROUTINES_API UCoroutinesSubsystem : public UEngineSubsystem
 public:
 	static UCoroutinesSubsystem& Get();
 
-	void StartCoroutine(ACETeam_Coroutines::FCoroutineNodePtr const& Coroutine);
+	void StartCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
 
 private:
 	ACETeam_Coroutines::FCoroutineExecutor Executor;

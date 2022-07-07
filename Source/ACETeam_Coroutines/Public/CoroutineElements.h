@@ -69,7 +69,7 @@ namespace ACETeam_Coroutines
 		class TDeferredCoroutineWrapper : public FCoroutineNode
 		{
 			TLambda m_Lambda;
-			FCoroutineNodePtr m_Child;
+			FCoroutineNodeRef m_Child;
 		public:
 			TDeferredCoroutineWrapper (TLambda const& Lambda) : m_Lambda(Lambda) {}
 			virtual EStatus Start(FCoroutineExecutor* Executor) override
@@ -116,7 +116,7 @@ namespace ACETeam_Coroutines
 	}
 
 	//Convenience node that returns an instant failure
-	FCoroutineNodePtr ACETEAM_COROUTINES_API _Error();
+	FCoroutineNodeRef ACETEAM_COROUTINES_API _Error();
 
 	namespace Detail
 	{
@@ -127,7 +127,7 @@ namespace ACETeam_Coroutines
 		public:
 			// Start is normal behavior for decorators, but not forced
 			virtual EStatus Start(FCoroutineExecutor* Executor) override;
-			void AddChild(FCoroutineNodePtr const& Child)
+			void AddChild(FCoroutineNodeRef const& Child)
 			{
 				if (m_Child)
 				{
@@ -174,10 +174,10 @@ namespace ACETeam_Coroutines
 		class ACETEAM_COROUTINES_API FCompositeCoroutine : public FCoroutineNode
 		{
 		protected:
-			typedef TArray<FCoroutineNodePtr> FChildren;
+			typedef TArray<FCoroutineNodeRef> FChildren;
 			FChildren m_Children;
 		public:
-			void AddChild(FCoroutineNodePtr const& Child);
+			void AddChild(FCoroutineNodeRef const& Child);
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
 			virtual int GetNumChildren() { return m_Children.Num(); }
 		};
@@ -260,7 +260,7 @@ namespace ACETeam_Coroutines
 		};
 
 		template<typename TCoroutine>
-		inline void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, FCoroutineNodePtr& First)
+		inline void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, FCoroutineNodeRef& First)
 		{
 			Composite->AddChild(First);
 		}
@@ -284,7 +284,7 @@ namespace ACETeam_Coroutines
 		};
 
 		template <typename TCoroutine, typename TLambda>
-		struct TAddCompositeChildHelper<TCoroutine, TLambda, FCoroutineNodePtr>
+		struct TAddCompositeChildHelper<TCoroutine, TLambda, FCoroutineNodeRef>
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
@@ -312,7 +312,7 @@ namespace ACETeam_Coroutines
 		}
 		
 		template<typename TComposite, typename... TChildren>
-		FCoroutineNodePtr MakeComposite(TChildren... Children)
+		FCoroutineNodeRef MakeComposite(TChildren... Children)
 		{
 			auto Comp = StaticCastSharedRef<FCompositeCoroutine>(MakeShared<TComposite, DefaultSPMode>());
 			AddCompositeChildren(Comp, Children...);
@@ -327,7 +327,7 @@ namespace ACETeam_Coroutines
 			TScopeHelper(TScopeLambda& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
 
 			template <typename TChild>
-			FCoroutineNodePtr operator() (TChild&& ScopeBody)
+			FCoroutineNodeRef operator() (TChild&& ScopeBody)
 			{
 				auto Scope = MakeShared<TScope<TScopeLambda>, DefaultSPMode>(m_ScopeLambda);
 				AddCoroutineChild(Scope, ScopeBody);
@@ -338,40 +338,40 @@ namespace ACETeam_Coroutines
 
 	//Runs its arguments in sequence until one returns false
 	template<typename ...TChildren>
-	FCoroutineNodePtr _Seq(TChildren... Children)
+	FCoroutineNodeRef _Seq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSequence>(Children...);
 	}
 
 	//Runs its arguments in parallel until one completes
 	template<typename ...TChildren>
-	FCoroutineNodePtr _Race(TChildren... Children)
+	FCoroutineNodeRef _Race(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FRace>(Children...);
 	}
 
 	//Runs its arguments in parallel until all complete
 	template<typename ...TChildren>
-	FCoroutineNodePtr _Sync(TChildren... Children)
+	FCoroutineNodeRef _Sync(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSync>(Children...);
 	}
 
 	//Waits for the specified time
-	inline FCoroutineNodePtr _Wait(float Time)
+	inline FCoroutineNodeRef _Wait(float Time)
 	{
 		return MakeShared<Detail::FTimer, DefaultSPMode>(Time);
 	}
 
 	//Waits for the specified number of frames
-	inline FCoroutineNodePtr _WaitFrames(int Frames)
+	inline FCoroutineNodeRef _WaitFrames(int Frames)
 	{
 		return MakeShared<Detail::FFrameTimer, DefaultSPMode>(Frames);
 	}
 
 	//Loops its child, evaluating at most once per execution step
 	template<typename TChild>
-	FCoroutineNodePtr _Loop(TChild Body)
+	FCoroutineNodeRef _Loop(TChild Body)
 	{
 		auto Loop = MakeShared<Detail::FLoop, DefaultSPMode>();
 		Detail::AddCoroutineChild(Loop, Body);
@@ -380,7 +380,7 @@ namespace ACETeam_Coroutines
 
 	//Shortcut for looping a sequence, similar to a do-while
 	template<typename ...TChildren>
-	FCoroutineNodePtr _LoopSeq(TChildren... Children)
+	FCoroutineNodeRef _LoopSeq(TChildren... Children)
 	{
 		auto Seq = _Seq(Children...);
 		return _Loop(Seq);
@@ -400,7 +400,7 @@ namespace ACETeam_Coroutines
 
 	//Forks another execution line. The result of executing the child will not affect the original execution.
 	template<typename TChild>
-	FCoroutineNodePtr _Fork(TChild Body)
+	FCoroutineNodeRef _Fork(TChild Body)
 	{
 		auto Fork = MakeShared<Detail::FFork, DefaultSPMode>();
 		Detail::AddCoroutineChild(Fork, Body);
@@ -412,7 +412,7 @@ namespace ACETeam_Coroutines
 		template <typename TLambda, typename TLambdaRetType = void>
 		struct TAddWeakLambdaHelper
 		{
-			FCoroutineNodePtr operator()(UObject* Obj, TLambda& Lambda)
+			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
 				return MakeShared<Detail::TWeakLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
 			}
@@ -421,16 +421,16 @@ namespace ACETeam_Coroutines
 		template <typename TLambda>
 		struct TAddWeakLambdaHelper<TLambda, bool>
 		{
-			FCoroutineNodePtr operator()(UObject* Obj, TLambda& Lambda)
+			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
 				return MakeShared<Detail::TWeakConditionLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
 			}
 		};
 
 		template <typename TLambda>
-		struct TAddWeakLambdaHelper<TLambda, FCoroutineNodePtr>
+		struct TAddWeakLambdaHelper<TLambda, FCoroutineNodeRef>
 		{
-			FCoroutineNodePtr operator()(UObject* Obj, TLambda& Lambda)
+			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
 				return MakeShared<Detail::TWeakDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Obj, Lambda);
 			}
@@ -438,7 +438,7 @@ namespace ACETeam_Coroutines
 	}
 
 	template<typename TLambda>
-	FCoroutineNodePtr _Weak(UObject* Obj, TLambda Lambda)
+	FCoroutineNodeRef _Weak(UObject* Obj, TLambda Lambda)
 	{
 		return Detail::TAddWeakLambdaHelper<TLambda, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>()(Obj, Lambda);
 	}

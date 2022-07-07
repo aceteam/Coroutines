@@ -61,12 +61,12 @@ ACETeam_Coroutines::FCoroutineExecutor::FCoroutineExecutor()
 	m_ActiveNodes.Add(FNodeExecInfo()); //add empty info that serves as frame marker
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutine(FCoroutineNodePtr const& Coroutine)
+void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutine(FCoroutineNodeRef const& Coroutine)
 {
 	EnqueueCoroutineNode(Coroutine, nullptr);
 }
 
-void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutineNode(FCoroutineNodePtr const& Node, FCoroutineNode* Parent)
+void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutineNode(FCoroutineNodeRef const& Node, FCoroutineNode* Parent)
 {
 	FNodeExecInfo CoroutineInfo;
 	CoroutineInfo.Node = Node;
@@ -184,9 +184,9 @@ void ACETeam_Coroutines::FCoroutineExecutor::ForceNodeEnd( FCoroutineNode* Node,
 	}
 }
 
-ACETeam_Coroutines::FCoroutineExecutor::EFindNodeResult ACETeam_Coroutines::FCoroutineExecutor::FindCoroutineNode(FCoroutineNodePtr const& CoroutinePtr)
+ACETeam_Coroutines::FCoroutineExecutor::EFindNodeResult ACETeam_Coroutines::FCoroutineExecutor::FindCoroutineNode(FCoroutineNodeRef const& CoroutinePtr)
 {
-	FCoroutineNode* Coroutine = CoroutinePtr.Get();
+	FCoroutineNode* Coroutine = &CoroutinePtr.Get();
 	FNodeExecInfo* It = m_SuspendedNodes.FindByPredicate(NodeIs(Coroutine));
 	if (It)
 	{
