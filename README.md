@@ -20,8 +20,9 @@ ACE Team Coroutines has neither of these issues.
 As with any other C++ module, you need to add the **"ACETeam_Coroutines"** module to the list of dependencies of your module's .Build.cs file
 
 It's recommended that you include the following headers:
-- CoroutineElements.h to have access to the building blocks for your coroutines.
-- CoroutinesSubsystem.h for a simple way to run your coroutine. The UCoroutinesSubsystem can execute coroutines in any circumstance. Even in the editor while it's not in play mode.
+- *CoroutineElements.h* to have access to the building blocks for your coroutines.
+- *CoroutinesSubsystem.h* for a simple way to run your coroutine. The UCoroutinesSubsystem can execute coroutines in any circumstance. Even in the editor while it's not in play mode.
+- *CoroutineEvents.h* to have access to **MakeEvent<...>** and **_WaitFor** which will allow you to make events that optionally broadcast values, and have your coroutines wait for them and receive those values.
 
 For simplicity you can add a "using namespace" declaration so you don't have to preface coroutine elements with the ACETeam_Coroutines namespace.
 
@@ -37,7 +38,7 @@ using namespace ACETeam_Coroutines;
 
 ...
 
-FCoroutineNodePtr _CoroutineTest(UWorld* World, FString TextToLog)
+FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
 {
     //Shared ptr values can be used to share data between different execution branches,
     // or different steps in your coroutine
