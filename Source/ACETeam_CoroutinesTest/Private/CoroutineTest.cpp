@@ -5,6 +5,7 @@
 #include "CoroutineElements.h"
 #include "CoroutineEvents.h"
 #include "CoroutinesSubsystem.h"
+#include "CoroutineAsync.h"
 #include "DrawDebugHelpers.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, ACETeam_CoroutinesTest)
@@ -95,6 +96,14 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
         [=] { 
             UE_LOG(LogTemp, Log, TEXT("This log will appear after the race above finishes"));
             UE_LOG(LogTemp, Log, TEXT("The final value stored in SharedValue is  %d"), *SharedValue); 
+        },
+        _Async(ENamedThreads::AnyBackgroundThreadNormalTask, []
+        {
+            FPlatformProcess::Sleep(5);
+        }),
+        []
+        {
+            UE_LOG(LogTemp, Log, TEXT("This log appears after the async task above finishes")); 
         }
     );
 }
