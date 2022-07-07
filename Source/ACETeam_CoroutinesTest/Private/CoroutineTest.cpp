@@ -3,6 +3,7 @@
 #include "CoroutineTest.h"
 
 #include "CoroutineElements.h"
+#include "CoroutineEvents.h"
 #include "CoroutinesSubsystem.h"
 #include "DrawDebugHelpers.h"
 
@@ -22,6 +23,11 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
     // or different steps in your coroutine
     //This way they're guaranteed to share the same lifetime as the code that's using them
     auto SharedValue = MakeShared<int>(0);
+
+
+    auto TestEvent1 = MakeEvent<int, float>();
+    auto TestEvent2 = MakeEvent<void>();
+    
     //_Seq concatenates coroutine elements in a sequence. It runs one after the other until
     // one of them fails
     //If one of them finishes during a frame, the next in the sequence will be evaluated
@@ -53,6 +59,36 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
                     //If one execution branch wants to pass data to a different
                     //branch, you can use shared variables
                     *SharedValue += FMath::RandHelper(10);
+                }
+            )
+        ),
+        _Race(
+            //Listen to two events in a race, will only handle the one that comes first
+            _Race(
+                _WaitFor(TestEvent1, [](int Value1, float Value2)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Received values %d %f"), Value1, Value2);
+                    return Value1 == 5;
+                }),
+                _WaitFor(TestEvent2, []
+                {
+                    UE_LOG(LogTemp, Log, TEXT("This log should not appear"));
+                }),
+                _WaitFor(TestEvent2, []
+                {
+                    return false;
+                }),
+                _WaitFor(TestEvent2)
+            ),
+            _Seq(
+                _Wait(1),
+                [=]
+                {
+                    TestEvent1->Broadcast(5, 10);
+                },
+                [=]
+                {
+                    TestEvent2->Broadcast();
                 }
             )
         ),

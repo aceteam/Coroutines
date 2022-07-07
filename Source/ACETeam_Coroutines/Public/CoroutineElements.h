@@ -69,13 +69,13 @@ namespace ACETeam_Coroutines
 		class TDeferredCoroutineWrapper : public FCoroutineNode
 		{
 			TLambda m_Lambda;
-			FCoroutineNodeRef m_Child;
+			FCoroutineNodePtr m_Child;
 		public:
 			TDeferredCoroutineWrapper (TLambda const& Lambda) : m_Lambda(Lambda) {}
 			virtual EStatus Start(FCoroutineExecutor* Executor) override
 			{
 				m_Child = m_Lambda();
-				Executor->EnqueueCoroutineNode(m_Child,this);
+				Executor->EnqueueCoroutineNode(m_Child.ToSharedRef(),this);
 				return Suspended; 
 			}
 			
@@ -85,7 +85,7 @@ namespace ACETeam_Coroutines
 			{
 				if (Status == Aborted)
 				{
-					Executor->AbortNode(m_Child);
+					Executor->AbortNode(m_Child.ToSharedRef());
 				}
 				m_Child.Reset(); //Child has finished its execution, so it can be released
 			};
@@ -414,7 +414,7 @@ namespace ACETeam_Coroutines
 		{
 			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
-				return MakeShared<Detail::TWeakLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
+				return MakeShared<TWeakLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
 			}
 		};
 
@@ -423,7 +423,7 @@ namespace ACETeam_Coroutines
 		{
 			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
-				return MakeShared<Detail::TWeakConditionLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
+				return MakeShared<TWeakConditionLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
 			}
 		};
 
@@ -432,7 +432,7 @@ namespace ACETeam_Coroutines
 		{
 			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
-				return MakeShared<Detail::TWeakDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Obj, Lambda);
+				return MakeShared<TWeakDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Obj, Lambda);
 			}
 		};
 	}
