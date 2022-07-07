@@ -49,10 +49,6 @@ public class ACETeam_CoroutinesTest : ModuleRules
 			}
 			);
 
-        if (Target.bBuildEditor == true)
-        {
-			bUseUnity = true;
-            //PrivateDependencyModuleNames.AddRange(new string[] { "Settings" });
-        }
+		bUseUnity = false;
     }
 }
