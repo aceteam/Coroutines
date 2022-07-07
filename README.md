@@ -12,6 +12,10 @@ Be sure to check out other plugins that approach this problem differently. There
 - [SquidTasks](https://github.com/westquote/SquidTasks)
 - [UE5Coro](https://github.com/landelare/ue5coro)
 
+Keep in mind that plugins that use C++ 20 coroutines don't run out of the box on UE4 on all platforms without source modifications.
+Also at least SquidTasks currently has issues with crashing after using a Live Coding recompile.
+ACE Team Coroutines has neither of these issues.
+
 ## Basic Usage
 As with any other C++ module, you need to add the **"ACETeam_Coroutines"** module to the list of dependencies of your module's .Build.cs file
 
@@ -105,6 +109,7 @@ _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 ```
 - **_Fork**: Spawns an independent execution branch for the contained element. This means if the original branch is aborted, it will not affect this spawned branch.
 - **_Weak**: Used to indicate a lambda should not be evaluated if an associated UObject is no longer valid. Returns a failure if the lambda has a return type.
+- ***[NEW]*** **_WaitFor**: Suspends execution of its branch until the Event it's listening to is broadcast. If the event broadcasts values, the second parameter to this must be a lambda that receives those values.
 
 #### Any of the previous building blocks can receive an argument of 4 possible types:
 1. A coroutine node (which is also the return type of any of these blocks)
@@ -117,6 +122,5 @@ None of the lambdas should receive arguments. You can omit the () except in the 
 **IMPORTANT:** You should only use capture by copy in these lambdas unless you're absolutely certain the lifetime of an object captured by reference will completely overlap the lifetime of your entire coroutine's execution.
 
 ## Future work planned
-A feature that **SkookumScript** had and this implementation is lacking is waiting on events, which can also pass parameters.
-This allows coroutines to receive data asynchronously from non-coroutine systems, or other coroutines.
-This can currently only be emulated with _Loops and shared variables, which is not as readable or performant.
+- Support for running code on another thread while suspending execution (non-blocking) on the game thread.
+- Support for requesting async loads of objects / classes while suspending execution.
