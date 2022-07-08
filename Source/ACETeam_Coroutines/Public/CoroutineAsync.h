@@ -37,6 +37,11 @@ namespace ACETeam_Coroutines
 			
 			virtual EStatus Start(FCoroutineExecutor* Exec) override
 			{
+				if (NamedThread == ENamedThreads::GameThread && IsInGameThread())
+				{
+					Lambda();
+					return Completed;
+				}
 				CachedExec = Exec;
 				auto SafeRef = GetThreadSafeRef<DefaultSPMode>(this);
 				AsyncTask(NamedThread, [this, SafeRef]
