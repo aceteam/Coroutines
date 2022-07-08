@@ -28,7 +28,8 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
 
     auto TestEvent1 = MakeEvent<int, float>();
     auto TestEvent2 = MakeEvent<void>();
-    
+
+    TArray<TSoftObjectPtr<UTexture2D>> Textures = {TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("")))};
     //_Seq concatenates coroutine elements in a sequence. It runs one after the other until
     // one of them fails
     //If one of them finishes during a frame, the next in the sequence will be evaluated
@@ -97,14 +98,21 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
             UE_LOG(LogTemp, Log, TEXT("This log will appear after the race above finishes"));
             UE_LOG(LogTemp, Log, TEXT("The final value stored in SharedValue is  %d"), *SharedValue); 
         },
-        _Async(ENamedThreads::AnyBackgroundThreadNormalTask, []
+        _Seq(
+            _Async(ENamedThreads::AnyBackgroundThreadNormalTask, []
+            {
+                FPlatformProcess::Sleep(5);
+            }),
+            []
+            {
+                UE_LOG(LogTemp, Log, TEXT("This log appears after the async task above finishes")); 
+            }
+        )
+        ,
+        _AsyncLoadObjects(Textures, [](TArray<UTexture2D*>& LoadedTextures)
         {
-            FPlatformProcess::Sleep(5);
-        }),
-        []
-        {
-            UE_LOG(LogTemp, Log, TEXT("This log appears after the async task above finishes")); 
-        }
+            
+        })
     );
 }
 
