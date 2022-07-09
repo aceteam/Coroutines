@@ -91,26 +91,27 @@ void UTestObject::RunTestCoroutine()
 }
 ```
 
-The prefixed **_** before each Coroutine is a convention inspired by ***SkookumScript***, as are the names of some of the primitives such as **_Race** and **_Sync**.
+The prefixed **_** before each Coroutine is a convention inspired by ***SkookumScript***, as are the names of some of the primitives such as ```_Race``` and ```_Sync```.
 
 ## Full List of Coroutine Elements:
-- **_Seq**: Concatenates coroutine elements in a sequence. It runs one after the other until one of them fails.
-- **_Race**: Spawns an execution branch for each of its contained elements, in the declared order. Aborts any running branches when one finishes its execution (successfully or unsuccessfully).
-- **_Sync**: Spawns an execution branch for each of its contained elements, in the declared order. Waits for all of them to finish their execution. If one of them failed during execution, the end result will be a failure.
-- **_Wait**: Pauses execution of its branch for the specified time.
-- **_WaitFrames**: Pauses execution of its branch for the specified number of frames.
-- **_Loop**: Evaluates its contained element once per frame, until it fails.
-- **_LoopSeq**: Shortcut for _Loop containing a _Seq
-- **_Scope**: Executes the lambda contained within its first set of parentheses when the contained execution branch stops executing for any reason.
+- ```_Seq```: Concatenates coroutine elements in a sequence. It runs one after the other until one of them fails.
+- ```_Race```: Spawns an execution branch for each of its contained elements, in the declared order. Aborts any running branches when one finishes its execution (successfully or unsuccessfully).
+- ```_Sync```: Spawns an execution branch for each of its contained elements, in the declared order. Waits for all of them to finish their execution. If one of them failed during execution, the end result will be a failure.
+- ```_Wait```: Pauses execution of its branch for the specified time.
+- ```_WaitFrames```: Pauses execution of its branch for the specified number of frames.
+- ```_Loop```: Evaluates its contained element once per frame, until it fails.
+- ```_LoopSeq```: Shortcut for ```_Loop``` containing a ```_Seq```
+- ```_Scope```: Executes the lambda contained within its first set of parentheses when the contained execution branch stops executing for any reason.
 ```c++
 _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 (
 ...
 )
 ```
-- **_Fork**: Spawns an independent execution branch for the contained element. This means if the original branch is aborted, it will not affect this spawned branch.
-- **_Weak**: Used to indicate a lambda should not be evaluated if an associated UObject is no longer valid. Returns a failure if the lambda has a return type.
-- ***[NEW]*** **_WaitFor**: Suspends execution of its branch until the Event it's listening to is broadcast. If the event broadcasts values, the second parameter to this must be a lambda that receives those values.
+- ```_Fork```: Spawns an independent execution branch for the contained element. This means if the original branch is aborted, it will not affect this spawned branch.
+- ```_Weak```: Used to indicate a lambda should not be evaluated if an associated ```UObject``` is no longer valid. Returns a failure if the lambda has a return type.
+- ***[NEW]*** ```_WaitFor```: Suspends execution of its branch until the Event it's listening to is broadcast. If the event broadcasts values, the second parameter to this must be a lambda that receives those values.
+- ***[NEW]*** ```_Async```: Runs a block of code on another thread, while suspending the execution branch that launched it. Lifetime of the data used by the code block must be handled in a thread-safe way (Uses ```AsyncTask``` internally, so same considerations apply). If you pass in ```ENamedThreads::GameThread``` as the thread to run on, the code will run synchronously (blocking) instead.
 
 #### Any of the previous building blocks can receive an argument of 4 possible types:
 1. A coroutine node (which is also the return type of any of these blocks)
@@ -123,5 +124,4 @@ None of the lambdas should receive arguments. You can omit the () except in the 
 **IMPORTANT:** You should only use capture by copy in these lambdas unless you're absolutely certain the lifetime of an object captured by reference will completely overlap the lifetime of your entire coroutine's execution.
 
 ## Future work planned
-- Support for running code on another thread while suspending execution (non-blocking) on the game thread.
 - Support for requesting async loads of objects / classes while suspending execution.
