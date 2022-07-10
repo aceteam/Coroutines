@@ -198,13 +198,13 @@ namespace ACETeam_Coroutines
 			explicit FTimer(float TargetTime): m_TargetTime (TargetTime) {}
 			virtual EStatus Start(FCoroutineExecutor*) override
 			{
+				if (m_TargetTime <= 0.0f)
+					return Completed;
 				m_Timer = m_TargetTime;
 				return Running; 
 			}
 			virtual EStatus Update(FCoroutineExecutor* Exec, float DeltaTime) override
 			{
-				if (Exec->IsInstant())
-					return Completed;
 				m_Timer -= DeltaTime;
 				if (m_Timer <= 0.0f)
 					return Completed;
@@ -223,13 +223,13 @@ namespace ACETeam_Coroutines
 
 			virtual EStatus Start(FCoroutineExecutor*) override
 			{
+				if (m_TargetFrames <= 0)
+					return Completed;
 				m_Frames = m_TargetFrames+1;
 				return Running;
 			}
 			virtual EStatus Update(FCoroutineExecutor* Exec, float) override
 			{
-				if (Exec->IsInstant())
-					return Completed;
 				--m_Frames;
 				if (m_Frames <= 0)
 					return Completed;
