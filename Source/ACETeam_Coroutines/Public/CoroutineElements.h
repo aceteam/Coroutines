@@ -96,7 +96,7 @@ namespace ACETeam_Coroutines
 		{
 			FWeakObjectPtr m_Object;
 			TWeakDeferredCoroutineWrapper (UObject* Obj, TLambda const& Lambda)
-			: TDeferredCoroutineWrapper(Lambda)
+			: TDeferredCoroutineWrapper<TLambda>(Lambda)
 			, m_Object(Obj){}
 
 			virtual EStatus Start(FCoroutineExecutor* Executor) override

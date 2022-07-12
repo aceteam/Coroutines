@@ -72,9 +72,9 @@ namespace ACETeam_Coroutines
 			check(IsInGameThread());
 			static_assert(TIsDerivedFrom<typename TEventListenerRef<TValues...>::ElementType, FEventListenerBase>::Value, "reinterpret_cast is not safe");
 #if ENGINE_MAJOR_VERSION >= 5
-			typedef TArray<TEventListenerRef<TValues...>, decltype(Listeners)::AllocatorType> TListeners;
+			typedef TArray<TEventListenerRef<TValues...>, typename decltype(Listeners)::AllocatorType> TListeners;
 #else
-			typedef TArray<TEventListenerRef<TValues...>, decltype(Listeners)::Allocator> TListeners;
+			typedef TArray<TEventListenerRef<TValues...>, typename decltype(Listeners)::Allocator> TListeners;
 #endif		
 			auto TempListeners = MoveTemp(reinterpret_cast<TListeners&>(Listeners));
 			for (auto& Listener : TempListeners)
@@ -115,8 +115,8 @@ namespace ACETeam_Coroutines
 		class TEventListener : public TEventListenerBase<TValues...>
 		{
 		public:
-			TEventListener(TEventRef<TValues> const& _Event, TLambda const& _Lambda)
-				:TEventListenerBase<TValues>(_Event)
+			TEventListener(TEventRef<TValues...> const& _Event, TLambda const& _Lambda)
+				:TEventListenerBase<TValues...>(_Event)
 				,Lambda(_Lambda)
 			{}
 			//by default we ignore the lambda's return value (if any)
