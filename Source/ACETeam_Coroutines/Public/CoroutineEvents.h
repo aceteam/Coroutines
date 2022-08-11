@@ -195,4 +195,9 @@ namespace ACETeam_Coroutines
 	{
 		return MakeShared<TEvent<TValues...>, DefaultSPMode>();
 	}
+
+	TEventRef<void> MakeEvent()
+	{
+		return MakeShared<TEvent<void>, DefaultSPMode>();
+	}
 }

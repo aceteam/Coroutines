@@ -237,6 +237,28 @@ namespace ACETeam_Coroutines
 			}
 		};
 
+		template <typename F>
+		class TDynamicTimer : public FCoroutineNode
+		{
+			F m_Lambda;
+			float m_Timer;
+		public:
+			TDynamicTimer(F const& Lambda) : m_Lambda(Lambda)
+			{}
+			virtual EStatus Start(FCoroutineExecutor* Exec) override
+			{
+				m_Timer = m_Lambda();
+				return m_Timer > 0.0f ? Running : Completed;
+			}
+			virtual EStatus Update(FCoroutineExecutor* Exec, float dt) override
+			{
+				m_Timer -= dt;
+				if (m_Timer < 0.0f)
+					return Completed;
+				return Running;
+			}
+		};
+
 		class ACETEAM_COROUTINES_API FParallelBase : public FCompositeCoroutine
 		{
 		public:
@@ -357,10 +379,34 @@ namespace ACETeam_Coroutines
 		return Detail::MakeComposite<Detail::FSync>(Children...);
 	}
 
-	//Waits for the specified time
-	inline FCoroutineNodeRef _Wait(float Time)
+	namespace Detail
 	{
-		return MakeShared<Detail::FTimer, DefaultSPMode>(Time);
+		template <typename T, bool bConvertibleToFloat>
+		struct TimerArgHelper
+		{
+			static FCoroutineNodeRef Make(T const& Arg)
+			{
+				typedef T TLambda;
+				static_assert(TIsSame<float, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>::Value, "Return type of lambda must be float");
+				return MakeShared<Detail::TDynamicTimer<TLambda>, DefaultSPMode>(Arg);
+			}
+		};
+
+		template <typename T>
+		struct TimerArgHelper<T, true>
+		{
+			static FCoroutineNodeRef Make(float Arg)
+			{
+				return MakeShared<Detail::FTimer, DefaultSPMode>(Arg);
+			}
+		};
+	}
+
+	//Waits for the specified number of seconds. Can also receive a lambda that returns the number of seconds when evaluated
+	template <typename T>
+	FCoroutineNodeRef _Wait(T const& Arg)
+	{
+		return Detail::TimerArgHelper<T, TIsArithmetic<T>::Value>::Make(Arg);
 	}
 
 	//Waits for the specified number of frames
