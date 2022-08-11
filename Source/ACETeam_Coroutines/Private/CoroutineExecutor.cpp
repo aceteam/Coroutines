@@ -61,6 +61,40 @@ ACETeam_Coroutines::FCoroutineExecutor::FCoroutineExecutor()
 	m_ActiveNodes.Add(FNodeExecInfo()); //add empty info that serves as frame marker
 }
 
+ACETeam_Coroutines::FCoroutineExecutor::~FCoroutineExecutor()
+{
+	if (HasRemainingWork())
+	{
+		TArray<FCoroutineNodePtr> ParentNodes;
+		for (auto& Info : m_SuspendedNodes)
+		{
+			if (Info.Parent == nullptr)
+			{
+				ParentNodes.Add(Info.Node);
+			}
+		}
+		for (auto& ParentNode : ParentNodes)
+		{
+			AbortNode(ParentNode.Get());
+		}
+		Cleanup();
+		
+		ParentNodes.Reset();
+		for (auto& Info : m_ActiveNodes)
+		{
+			if (Info.Parent == nullptr && Info.Node.IsValid())
+			{
+				ParentNodes.Add(Info.Node);
+			}
+		}
+		for (auto& ParentNode : ParentNodes)
+		{
+			AbortNode(ParentNode.Get());
+		}
+		check(!HasRemainingWork());
+	}
+}
+
 void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutine(FCoroutineNodeRef const& Coroutine)
 {
 	EnqueueCoroutineNode(Coroutine, nullptr);
