@@ -182,7 +182,21 @@ namespace ACETeam_Coroutines
 			virtual int GetNumChildren() { return m_Children.Num(); }
 		};
 
-		class ACETEAM_COROUTINES_API FSequence final : public FCompositeCoroutine
+		class ACETEAM_COROUTINES_API FSequence : public FCompositeCoroutine
+		{
+			uint32 m_CurChild = 0;
+		public:
+			virtual EStatus Start(FCoroutineExecutor* Exec) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+		
+		class ACETEAM_COROUTINES_API FSequenceCatch : public FSequence
+		{
+		public:
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+
+		class ACETEAM_COROUTINES_API FSelect : public FCompositeCoroutine
 		{
 			uint32 m_CurChild = 0;
 		public:
@@ -358,11 +372,25 @@ namespace ACETeam_Coroutines
 		};
 	}
 
-	//Runs its arguments in sequence until one returns false
+	//Runs its arguments in sequence until one returns false, propagates failure upwards
 	template<typename ...TChildren>
 	FCoroutineNodeRef _Seq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSequence>(Children...);
+	}
+
+	//Runs its arguments in sequence until one returns false, catches failures
+	template<typename ...TChildren>
+	FCoroutineNodeRef _SeqCatch(TChildren... Children)
+	{
+		return Detail::MakeComposite<Detail::FSequenceCatch>(Children...);
+	}
+
+	//Runs its arguments in sequence until one finishes successfully, propagates failure if last arg fails
+	template<typename ...TChildren>
+	FCoroutineNodeRef _Select(TChildren... Children)
+	{
+		return Detail::MakeComposite<Detail::FSelect>(Children...);
 	}
 
 	//Runs its arguments in parallel until one completes
