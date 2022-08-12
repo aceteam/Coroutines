@@ -44,7 +44,7 @@ namespace Detail
 		return Suspended;
 	}
 
-	EStatus FSequenceCatch::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	EStatus FOptionalSequence::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
 	{
 		//don't propagate failure
 		if (Status == Failed)

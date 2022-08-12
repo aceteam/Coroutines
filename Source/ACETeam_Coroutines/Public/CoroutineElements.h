@@ -190,7 +190,7 @@ namespace ACETeam_Coroutines
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 		};
 		
-		class ACETEAM_COROUTINES_API FSequenceCatch : public FSequence
+		class ACETEAM_COROUTINES_API FOptionalSequence : public FSequence
 		{
 		public:
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
@@ -381,9 +381,9 @@ namespace ACETeam_Coroutines
 
 	//Runs its arguments in sequence until one returns false, catches failures
 	template<typename ...TChildren>
-	FCoroutineNodeRef _SeqCatch(TChildren... Children)
+	FCoroutineNodeRef _OptionalSeq(TChildren... Children)
 	{
-		return Detail::MakeComposite<Detail::FSequenceCatch>(Children...);
+		return Detail::MakeComposite<Detail::FOptionalSequence>(Children...);
 	}
 
 	//Runs its arguments in sequence until one finishes successfully, propagates failure if last arg fails
