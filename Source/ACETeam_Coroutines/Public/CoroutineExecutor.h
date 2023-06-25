@@ -12,6 +12,7 @@ namespace ACETeam_Coroutines
 		{
 			None = 1<<6,
 			Active = ~(Completed|Failed),
+			Finished = (Completed|Failed)
 		};
 
 		struct FNodeExecInfo
@@ -51,7 +52,7 @@ namespace ACETeam_Coroutines
 	
 	public:
 		FCoroutineExecutor();
-		~FCoroutineExecutor(){}
+		~FCoroutineExecutor();
 
 		//This is the main entry point for running a coroutine on an executor
 		void EnqueueCoroutine(FCoroutineNodeRef const& Coroutine);
@@ -107,5 +108,7 @@ namespace ACETeam_Coroutines
 		void ForceNodeEnd(FCoroutineNode* Node, EStatus Status);
 
 		void ForceNodeEnd(FCoroutineNodeRef const& Node, EStatus Status) { ForceNodeEnd(&Node.Get(), Status); }
+
+		static bool IsFinished(EStatus Status) { return (Status & Finished) != 0; }
 	};
 }

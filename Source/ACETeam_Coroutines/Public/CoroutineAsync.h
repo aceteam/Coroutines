@@ -68,6 +68,7 @@ namespace ACETeam_Coroutines
 		};
 	}
 
+	//Suspends execution of the coroutine until the lambda has finished executing in another thread. If ENamedThreads::GameThread is passed in, the lambda will block the game thread until finished
 	template <typename TLambda>
 	FCoroutineNodeRef _Async(ENamedThreads::Type NamedThread, TLambda const& Lambda)
 	{

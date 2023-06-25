@@ -44,6 +44,37 @@ namespace Detail
 		return Suspended;
 	}
 
+	EStatus FOptionalSequence::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	{
+		//don't propagate failure
+		if (Status == Failed)
+			return Completed;
+		return FSequence::OnChildStopped(Exec, Status, Child);
+	}
+
+	EStatus FSelect::Start(FCoroutineExecutor* Exec)
+	{
+		if (m_Children.Num() == 0)
+			return Completed;
+		m_CurChild = 0;
+		Exec->EnqueueCoroutineNode(m_Children[m_CurChild++], this);
+		return Suspended;
+	}
+
+	EStatus FSelect::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	{
+		if (Status == Completed)
+		{
+			return Completed;
+		}
+		if (m_CurChild == m_Children.Num())
+		{
+			return Status;
+		}
+		Exec->EnqueueCoroutineNode(m_Children[m_CurChild++], this);
+		return Suspended;
+	}
+
 	EStatus FParallelBase::Start( FCoroutineExecutor* Exec )
 	{
 		for (int i = m_Children.Num()-1; i >= 0; --i)

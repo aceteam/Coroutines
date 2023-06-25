@@ -32,8 +32,9 @@ namespace ACETeam_Coroutines
 				if (m_Object.IsValid())
 				{
 					m_Lambda();
+					return Completed;
 				}
-				return Completed;
+				return Failed;
 			}
 		};
 
@@ -105,7 +106,7 @@ namespace ACETeam_Coroutines
 				{
 					return TDeferredCoroutineWrapper<TLambda>::Start(Executor);
 				}
-				return Completed;
+				return Failed;
 			}
 		};
 
@@ -166,8 +167,12 @@ namespace ACETeam_Coroutines
 			TScope(TScopeEndedLambda& OnScopeEnd) : m_OnScopeEnd(OnScopeEnd){}
 			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override
 			{
-				m_OnScopeEnd();
 				return Status;
+			}
+			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override
+			{
+				m_OnScopeEnd();
+				return FCoroutineDecorator::End(Exec, Status);
 			}
 		};
 
@@ -182,7 +187,21 @@ namespace ACETeam_Coroutines
 			virtual int GetNumChildren() { return m_Children.Num(); }
 		};
 
-		class ACETEAM_COROUTINES_API FSequence final : public FCompositeCoroutine
+		class ACETEAM_COROUTINES_API FSequence : public FCompositeCoroutine
+		{
+			uint32 m_CurChild = 0;
+		public:
+			virtual EStatus Start(FCoroutineExecutor* Exec) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+		
+		class ACETEAM_COROUTINES_API FOptionalSequence : public FSequence
+		{
+		public:
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+
+		class ACETEAM_COROUTINES_API FSelect : public FCompositeCoroutine
 		{
 			uint32 m_CurChild = 0;
 		public:
@@ -232,6 +251,28 @@ namespace ACETeam_Coroutines
 			{
 				--m_Frames;
 				if (m_Frames <= 0)
+					return Completed;
+				return Running;
+			}
+		};
+
+		template <typename F>
+		class TDynamicTimer : public FCoroutineNode
+		{
+			F m_Lambda;
+			float m_Timer;
+		public:
+			TDynamicTimer(F const& Lambda) : m_Lambda(Lambda)
+			{}
+			virtual EStatus Start(FCoroutineExecutor* Exec) override
+			{
+				m_Timer = m_Lambda();
+				return m_Timer > 0.0f ? Running : Completed;
+			}
+			virtual EStatus Update(FCoroutineExecutor* Exec, float dt) override
+			{
+				m_Timer -= dt;
+				if (m_Timer < 0.0f)
 					return Completed;
 				return Running;
 			}
@@ -336,31 +377,75 @@ namespace ACETeam_Coroutines
 		};
 	}
 
-	//Runs its arguments in sequence until one returns false
+	//Runs its arguments in sequence until one returns false, propagates failure upwards
 	template<typename ...TChildren>
 	FCoroutineNodeRef _Seq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSequence>(Children...);
 	}
 
-	//Runs its arguments in parallel until one completes
+	//Runs its arguments in sequence until one returns false, catches failures
+	template<typename ...TChildren>
+	FCoroutineNodeRef _OptionalSeq(TChildren... Children)
+	{
+		return Detail::MakeComposite<Detail::FOptionalSequence>(Children...);
+	}
+
+	//Runs its arguments in sequence until one finishes successfully, propagates failure if last arg fails
+	template<typename ...TChildren>
+	FCoroutineNodeRef _Select(TChildren... Children)
+	{
+		return Detail::MakeComposite<Detail::FSelect>(Children...);
+	}
+
+	//Runs its arguments in parallel until one completes, propagates failure if the child that finished the race failed
 	template<typename ...TChildren>
 	FCoroutineNodeRef _Race(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FRace>(Children...);
 	}
 
-	//Runs its arguments in parallel until all complete
+	//Runs its arguments in parallel until all complete, propagates failure if any child failed
 	template<typename ...TChildren>
 	FCoroutineNodeRef _Sync(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSync>(Children...);
 	}
 
-	//Waits for the specified time
-	inline FCoroutineNodeRef _Wait(float Time)
+	namespace Detail
 	{
-		return MakeShared<Detail::FTimer, DefaultSPMode>(Time);
+		template <typename T, bool bConvertibleToFloat>
+		struct TimerArgHelper
+		{
+			static FCoroutineNodeRef Make(T const& Arg)
+			{
+				typedef T TLambda;
+				static_assert(std::is_same_v<float, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>, "Return type of lambda must be float");
+				return MakeShared<Detail::TDynamicTimer<TLambda>, DefaultSPMode>(Arg);
+			}
+		};
+
+		template <typename T>
+		struct TimerArgHelper<T, true>
+		{
+			static FCoroutineNodeRef Make(float Arg)
+			{
+				return MakeShared<Detail::FTimer, DefaultSPMode>(Arg);
+			}
+		};
+	}
+
+	//Waits for the specified number of seconds. Can also receive a lambda that returns the number of seconds when evaluated
+	template <typename T>
+	FCoroutineNodeRef _Wait(T const& Arg)
+	{
+		return Detail::TimerArgHelper<T, TIsArithmetic<T>::Value>::Make(Arg);
+	}
+
+	//Waits for the specified number of seconds fetched from shared float
+	inline FCoroutineNodeRef _Wait(TSharedRef<float> const& FloatVar)
+	{
+		return _Wait([=]{ return *FloatVar; });
 	}
 
 	//Waits for the specified number of frames
@@ -398,7 +483,7 @@ namespace ACETeam_Coroutines
 		return Detail::TScopeHelper<TOnScopeExit>(OnScopeExit);
 	}
 
-	//Forks another execution line. The result of executing the child will not affect the original execution.
+	//Forks another execution line. Will not wait for the contained elements. The result of executing the child will not affect the original execution.
 	template<typename TChild>
 	FCoroutineNodeRef _Fork(TChild Body)
 	{
@@ -437,6 +522,7 @@ namespace ACETeam_Coroutines
 		};
 	}
 
+	//The body will not be executed if the associated UObject no longer exists
 	template<typename TLambda>
 	FCoroutineNodeRef _Weak(UObject* Obj, TLambda Lambda)
 	{
