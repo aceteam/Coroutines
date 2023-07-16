@@ -113,6 +113,9 @@ namespace ACETeam_Coroutines
 	template<typename ...TValues>
 	using TEventRef = TSharedRef<TEvent<TValues...>, DefaultSPMode>;
 
+	template<typename ...TValues>
+	using TEventWeakPtr = TWeakPtr<TEvent<TValues...>, DefaultSPMode>;
+
 	namespace Detail
 	{
 		template<typename TLambda, typename TLambdaRetValue, typename ...TValues>
