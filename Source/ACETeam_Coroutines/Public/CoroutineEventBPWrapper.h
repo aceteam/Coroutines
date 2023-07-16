@@ -1,4 +1,4 @@
-﻿// Copyright Daniel Amthauer. All Rights Reserved
+﻿// Copyright ACE Team Software S.A. All Rights Reserved.
 
 #pragma once
 
