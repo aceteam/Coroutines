@@ -262,11 +262,11 @@ namespace ACETeam_Coroutines
 			F m_Lambda;
 			float m_Timer;
 		public:
-			TDynamicTimer(F const& Lambda) : m_Lambda(Lambda)
+			explicit TDynamicTimer(F const& Lambda) : m_Lambda(Lambda)
 			{}
 			virtual EStatus Start(FCoroutineExecutor* Exec) override
 			{
-				m_Timer = m_Lambda();
+				m_Timer = static_cast<float>(m_Lambda());
 				return m_Timer > 0.0f ? Running : Completed;
 			}
 			virtual EStatus Update(FCoroutineExecutor* Exec, float dt) override
@@ -336,7 +336,7 @@ namespace ACETeam_Coroutines
 		template <typename TCoroutine, typename TLambda>
 		void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 		{
-			TAddCompositeChildHelper<TCoroutine, TLambda, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>()(Composite, First);
+			TAddCompositeChildHelper<TCoroutine, TLambda, typename ::TFunctorTraits<TLambda>::RetType>()(Composite, First);
 		}
 
 		template <typename TChild>
@@ -420,7 +420,7 @@ namespace ACETeam_Coroutines
 			static FCoroutineNodeRef Make(T const& Arg)
 			{
 				typedef T TLambda;
-				static_assert(std::is_same_v<float, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>, "Return type of lambda must be float");
+				static_assert(TIsArithmetic<typename ::TFunctorTraits<TLambda>::RetType>::Value, "Return type of lambda must be convertible to float");
 				return MakeShared<Detail::TDynamicTimer<TLambda>, DefaultSPMode>(Arg);
 			}
 		};
@@ -526,6 +526,6 @@ namespace ACETeam_Coroutines
 	template<typename TLambda>
 	FCoroutineNodeRef _Weak(UObject* Obj, TLambda Lambda)
 	{
-		return Detail::TAddWeakLambdaHelper<TLambda, typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType>()(Obj, Lambda);
+		return Detail::TAddWeakLambdaHelper<TLambda, typename ::TFunctorTraits<TLambda>::RetType>()(Obj, Lambda);
 	}
 }

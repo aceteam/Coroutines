@@ -38,3 +38,6 @@ struct TFunctionTraits<R(C::*)(Args...)>
 {
   using Pointer = R(*)(Args...);
 };
+
+template <typename F>
+struct TFunctorTraits : TFunctionTraits<decltype(&F::operator())> {};
