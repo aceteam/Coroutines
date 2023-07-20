@@ -2,6 +2,8 @@
 
 #include "ACETeam_CoroutinesModule.h"
 
+#include "CoroutineLog.h"
+
 void FACETeam_CoroutinesModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
@@ -13,5 +15,6 @@ void FACETeam_CoroutinesModule::ShutdownModule()
 	// we call this function before unloading the module.
 }
 
+DEFINE_LOG_CATEGORY(LogACETeamCoroutines);
 
 IMPLEMENT_MODULE(FACETeam_CoroutinesModule, ACETeam_Coroutines)
