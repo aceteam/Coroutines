@@ -41,3 +41,11 @@ struct TFunctionTraits<R(C::*)(Args...)>
 
 template <typename F>
 struct TFunctorTraits : TFunctionTraits<decltype(&F::operator())> {};
+
+// Primary template
+template <typename T, typename = void>
+struct TIsFunctor : std::false_type {};
+
+// Specialization for functors (types with callable 'operator()')
+template <typename T>
+struct TIsFunctor<T, std::void_t<decltype(&T::operator())>> : std::true_type {};

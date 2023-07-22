@@ -10,7 +10,7 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
-	"CanContainContent": true,
+	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"Installed": false,
 	"Modules": [
@@ -21,7 +21,7 @@
 		},
 		{
 			"Name": "ACETeam_CoroutinesTest",
-			"Type": "Runtime",
+			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"
 		}
 	]

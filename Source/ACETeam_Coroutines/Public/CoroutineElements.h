@@ -150,7 +150,7 @@ namespace ACETeam_Coroutines
 
 		class ACETEAM_COROUTINES_API FLoop : public FCoroutineDecorator
 		{
-			int m_LastStep;
+			int m_LastStep = -1;
 		
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
@@ -186,6 +186,11 @@ namespace ACETeam_Coroutines
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
 			virtual int GetNumChildren() { return m_Children.Num(); }
 		};
+	}
+	
+	typedef TSharedRef<Detail::FCompositeCoroutine, DefaultSPMode> FCoroutineCompositeRef;
+	
+	namespace Detail {
 
 		class ACETEAM_COROUTINES_API FSequence : public FCompositeCoroutine
 		{
@@ -211,7 +216,7 @@ namespace ACETeam_Coroutines
 
 		class ACETEAM_COROUTINES_API FTimer : public FCoroutineNode
 		{
-			float m_Timer;
+			float m_Timer = 0.0f;
 			float m_TargetTime;
 		public:
 			explicit FTimer(float TargetTime): m_TargetTime (TargetTime) {}
@@ -233,7 +238,7 @@ namespace ACETeam_Coroutines
 
 		class ACETEAM_COROUTINES_API FFrameTimer : public FCoroutineNode
 		{
-			int m_Frames;
+			int m_Frames = 0;
 			int m_TargetFrames;
 		public:
 			explicit FFrameTimer(int TargetFrames): m_TargetFrames(TargetFrames)
@@ -260,7 +265,7 @@ namespace ACETeam_Coroutines
 		class TDynamicTimer : public FCoroutineNode
 		{
 			F m_Lambda;
-			float m_Timer;
+			float m_Timer = 0.0f;
 		public:
 			explicit TDynamicTimer(F const& Lambda) : m_Lambda(Lambda)
 			{}
@@ -300,8 +305,9 @@ namespace ACETeam_Coroutines
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 		};
 
-		template<typename TCoroutine>
-		inline void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, FCoroutineNodeRef& First)
+		template<typename TCoroutine, typename TChildNode>
+		typename TEnableIf<TIsDerivedFrom<TChildNode, FCoroutineNode>::Value, void>::Type
+		AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TSharedRef<TChildNode, DefaultSPMode> const& First)
 		{
 			Composite->AddChild(First);
 		}
@@ -311,7 +317,7 @@ namespace ACETeam_Coroutines
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
-				Composite->AddChild(MakeShared<Detail::TLambdaCoroutine<TLambda>, DefaultSPMode>(First));
+				Composite->AddChild(MakeShared<TLambdaCoroutine<TLambda>, DefaultSPMode>(First));
 			}
 		};
 
@@ -320,7 +326,7 @@ namespace ACETeam_Coroutines
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
-				Composite->AddChild(MakeShared<Detail::TConditionLambdaCoroutine<TLambda>, DefaultSPMode>(First));
+				Composite->AddChild(MakeShared<TConditionLambdaCoroutine<TLambda>, DefaultSPMode>(First));
 			}
 		};
 
@@ -329,14 +335,19 @@ namespace ACETeam_Coroutines
 		{
 			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 			{
-				Composite->AddChild(MakeShared<Detail::TDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(First));
+				Composite->AddChild(MakeShared<TDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(First));
 			}
 		};
 
 		template <typename TCoroutine, typename TLambda>
-		void AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
+		typename TEnableIf<TIsFunctor<TLambda>::value, void>::Type
+		AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 		{
 			TAddCompositeChildHelper<TCoroutine, TLambda, typename ::TFunctorTraits<TLambda>::RetType>()(Composite, First);
+		}
+		
+		inline void AddCompositeChildren(TSharedRef<FCompositeCoroutine, DefaultSPMode>&)
+		{
 		}
 
 		template <typename TChild>
@@ -353,7 +364,7 @@ namespace ACETeam_Coroutines
 		}
 		
 		template<typename TComposite, typename... TChildren>
-		FCoroutineNodeRef MakeComposite(TChildren... Children)
+		FCoroutineCompositeRef MakeComposite(TChildren... Children)
 		{
 			auto Comp = StaticCastSharedRef<FCompositeCoroutine>(MakeShared<TComposite, DefaultSPMode>());
 			AddCompositeChildren(Comp, Children...);
@@ -379,35 +390,35 @@ namespace ACETeam_Coroutines
 
 	//Runs its arguments in sequence until one returns false, propagates failure upwards
 	template<typename ...TChildren>
-	FCoroutineNodeRef _Seq(TChildren... Children)
+	FCoroutineCompositeRef _Seq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSequence>(Children...);
 	}
 
 	//Runs its arguments in sequence until one returns false, catches failures
 	template<typename ...TChildren>
-	FCoroutineNodeRef _OptionalSeq(TChildren... Children)
+	FCoroutineCompositeRef _OptionalSeq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FOptionalSequence>(Children...);
 	}
 
 	//Runs its arguments in sequence until one finishes successfully, propagates failure if last arg fails
 	template<typename ...TChildren>
-	FCoroutineNodeRef _Select(TChildren... Children)
+	FCoroutineCompositeRef _Select(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSelect>(Children...);
 	}
 
 	//Runs its arguments in parallel until one completes, propagates failure if the child that finished the race failed
 	template<typename ...TChildren>
-	FCoroutineNodeRef _Race(TChildren... Children)
+	FCoroutineCompositeRef _Race(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FRace>(Children...);
 	}
 
 	//Runs its arguments in parallel until all complete, propagates failure if any child failed
 	template<typename ...TChildren>
-	FCoroutineNodeRef _Sync(TChildren... Children)
+	FCoroutineCompositeRef _Sync(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FSync>(Children...);
 	}
