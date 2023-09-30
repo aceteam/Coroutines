@@ -22,6 +22,8 @@ public:
 
 	void StartCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
 
+	void AbortCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
+
 	virtual void Tick(float DeltaTime) override;
 
 	TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UCoroutinesWorldSubsystem, STATGROUP_Tickables); }

@@ -19,6 +19,11 @@ void UCoroutinesWorldSubsystem::StartCoroutine(ACETeam_Coroutines::FCoroutineNod
 	Executor.EnqueueCoroutine(Coroutine);
 }
 
+void UCoroutinesWorldSubsystem::AbortCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine)
+{
+	Executor.AbortTree(Coroutine);
+}
+
 void UCoroutinesWorldSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);

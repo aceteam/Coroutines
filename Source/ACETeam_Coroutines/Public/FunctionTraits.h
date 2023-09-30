@@ -12,7 +12,7 @@ namespace detail
 	  using ArgTypes = TTuple<Args...>;
 	  static constexpr std::size_t ArgCount = sizeof...(Args);
 	  template<std::size_t N>
-	  using NthArg = TTupleElement<N, ArgTypes>;
+	  using NthArg = typename TTupleElement<N, ArgTypes>::Type;
 	};
 }
 

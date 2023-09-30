@@ -43,6 +43,7 @@ namespace ACETeam_Coroutines
 			}
 			bool IsAvailable() const { return CurrentActive < MaxActive; }
 			bool TryTake(FSemaphoreHandlerRef const& Handler);
+			bool DropFromQueue(FSemaphoreHandlerRef const& Handler);
 			void Release();
 			void SetMaxActive(int NewMaxActive);
 			

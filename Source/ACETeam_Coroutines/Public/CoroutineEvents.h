@@ -114,6 +114,9 @@ namespace ACETeam_Coroutines
 	using TEventRef = TSharedRef<TEvent<TValues...>, DefaultSPMode>;
 
 	template<typename ...TValues>
+	using TEventPtr = TSharedPtr<TEvent<TValues...>, DefaultSPMode>;
+
+	template<typename ...TValues>
 	using TEventWeakPtr = TWeakPtr<TEvent<TValues...>, DefaultSPMode>;
 
 	namespace Detail

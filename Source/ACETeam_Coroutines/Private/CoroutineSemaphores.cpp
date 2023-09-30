@@ -30,6 +30,11 @@ namespace ACETeam_Coroutines
 			{
 				Semaphore->Release();
 			}
+			else if (CachedExec)
+			{
+				ensure(Semaphore->DropFromQueue(AsShared()));
+			}
+			CachedExec = nullptr;
 		}
 
 		void FSemaphoreHandlerNode::Resume()
@@ -50,6 +55,11 @@ namespace ACETeam_Coroutines
 			return false;
 		}
 
+		bool FSemaphore::DropFromQueue(FSemaphoreHandlerRef const& Handler)
+		{
+			return QueuedHandlers.Remove(Handler) > 0;
+		}
+
 		void FSemaphore::Release()
 		{
 			check(CurrentActive > 0);
@@ -66,7 +76,7 @@ namespace ACETeam_Coroutines
 		void FSemaphore::SetMaxActive(int NewMaxActive)
 		{
 			check(NewMaxActive > 0);
-			if (NewMaxActive > CurrentActive)
+			if (NewMaxActive < CurrentActive)
 			{
 				UE_LOG(LogACETeamCoroutines, Warning, TEXT("Setting max active to a lower value than the currently running coroutines. (NewMax: %d, Current: %d)"), NewMaxActive, CurrentActive);
 			}

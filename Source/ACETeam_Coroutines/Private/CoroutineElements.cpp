@@ -167,10 +167,30 @@ namespace Detail
 	{
 		return Failed;
 	}
+
+	EStatus FNopNode::Start(FCoroutineExecutor* Exec)
+	{
+		return Completed;
+	}
+
+	EStatus FWaitForeverNode::Start(FCoroutineExecutor* Exec)
+	{
+		return Suspended;
+	}
 }
 
 FCoroutineNodeRef _Error()
 {
 	return MakeShared<Detail::FErrorNode, DefaultSPMode>();
+}
+
+FCoroutineNodeRef _Nop()
+{
+	return MakeShared<Detail::FNopNode, DefaultSPMode>();
+}
+
+FCoroutineNodeRef _WaitForever()
+{
+	return MakeShared<Detail::FWaitForeverNode, DefaultSPMode>();
 }
 }

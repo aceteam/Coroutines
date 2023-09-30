@@ -96,10 +96,12 @@ namespace ACETeam_Coroutines
 		class TWeakDeferredCoroutineWrapper : public TDeferredCoroutineWrapper<TLambda>
 		{
 			FWeakObjectPtr m_Object;
+			
+		public:
 			TWeakDeferredCoroutineWrapper (UObject* Obj, TLambda const& Lambda)
 			: TDeferredCoroutineWrapper<TLambda>(Lambda)
 			, m_Object(Obj){}
-
+		
 			virtual EStatus Start(FCoroutineExecutor* Executor) override
 			{
 				if (m_Object.IsValid())
@@ -114,10 +116,27 @@ namespace ACETeam_Coroutines
 		{
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 		};
+
+		class ACETEAM_COROUTINES_API FNopNode : public FCoroutineNode
+		{
+			virtual EStatus Start(FCoroutineExecutor* Exec) override;
+		};
+
+		class ACETEAM_COROUTINES_API FWaitForeverNode : public FCoroutineNode
+		{
+			virtual EStatus Start(FCoroutineExecutor* Exec) override;
+		};
 	}
 
 	//Convenience node that returns an instant failure
 	FCoroutineNodeRef ACETEAM_COROUTINES_API _Error();
+
+	//Convenience node that does nothing, just completes instantly
+	//Useful for returning from deferred coroutine lambdas as a default
+	FCoroutineNodeRef ACETEAM_COROUTINES_API _Nop();
+
+	//Convenience node that's suspended forever, useful as a sort of _Nop in a _Race context
+	FCoroutineNodeRef ACETEAM_COROUTINES_API _WaitForever();
 
 	namespace Detail
 	{
@@ -312,38 +331,41 @@ namespace ACETeam_Coroutines
 			Composite->AddChild(First);
 		}
 
-		template <typename TCoroutine, typename TLambda, typename TLambdaRetType = void>
-		struct TAddCompositeChildHelper
+		template <typename TLambdaRetType = void, typename Enable=void>
+		struct TNodeTemplateForLambdaRetType
 		{
-			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
-			{
-				Composite->AddChild(MakeShared<TLambdaCoroutine<TLambda>, DefaultSPMode>(First));
-			}
+			//template<typename TLambda>
+			//using Value = TSomeTemplate<TLambda>;
 		};
 
-		template <typename TCoroutine, typename TLambda>
-		struct TAddCompositeChildHelper<TCoroutine, TLambda, bool>
+		template <>
+		struct TNodeTemplateForLambdaRetType<void>
 		{
-			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
-			{
-				Composite->AddChild(MakeShared<TConditionLambdaCoroutine<TLambda>, DefaultSPMode>(First));
-			}
+			template<typename TLambda>
+			using Value = TLambdaCoroutine<TLambda>;
 		};
 
-		template <typename TCoroutine, typename TLambda>
-		struct TAddCompositeChildHelper<TCoroutine, TLambda, FCoroutineNodeRef>
+		template <>
+		struct TNodeTemplateForLambdaRetType<bool>
 		{
-			void operator()(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
-			{
-				Composite->AddChild(MakeShared<TDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(First));
-			}
+			template<typename TLambda>
+			using Value = TConditionLambdaCoroutine<TLambda>;
+		};
+
+		template <typename TCoroutine>
+		struct TNodeTemplateForLambdaRetType<TSharedRef<TCoroutine, DefaultSPMode>,
+		typename TEnableIf<TIsDerivedFrom<TCoroutine, FCoroutineNode>::Value, void>::Type>
+		{
+			template<typename TLambda>
+			using Value = TDeferredCoroutineWrapper<TLambda>;
 		};
 
 		template <typename TCoroutine, typename TLambda>
 		typename TEnableIf<TIsFunctor<TLambda>::value, void>::Type
 		AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 		{
-			TAddCompositeChildHelper<TCoroutine, TLambda, typename ::TFunctorTraits<TLambda>::RetType>()(Composite, First);
+			typedef typename ::TFunctorTraits<TLambda>::RetType RetType;
+			Composite->AddChild(MakeShared<typename TNodeTemplateForLambdaRetType<RetType>::template Value<TLambda>, DefaultSPMode>(First));
 		}
 		
 		inline void AddCompositeChildren(TSharedRef<FCompositeCoroutine, DefaultSPMode>&)
