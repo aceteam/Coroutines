@@ -110,5 +110,9 @@ namespace ACETeam_Coroutines
 		void ForceNodeEnd(FCoroutineNodeRef const& Node, EStatus Status) { ForceNodeEnd(&Node.Get(), Status); }
 
 		static bool IsFinished(EStatus Status) { return (Status & Finished) != 0; }
+
+#if WITH_GAMEPLAY_DEBUGGER
+		friend class FGameplayDebuggerCategory_Coroutines;
+#endif
 	};
 }

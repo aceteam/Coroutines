@@ -26,6 +26,13 @@ public:
 	virtual EStatus Update(FCoroutineExecutor* Exec, float dt) { return Running; }
 	virtual void End(FCoroutineExecutor* Exec, EStatus Status) {};
 	virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) { return Running; }
+
+#if WITH_GAMEPLAY_DEBUGGER
+private:
+	friend class FGameplayDebuggerCategory_Coroutines;
+	
+	virtual FString Debug_GetName() const { return FString(); }
+#endif
 };
 	
 }

@@ -49,5 +49,7 @@ public class ACETeam_Coroutines : ModuleRules
 			);
 
 		bUseUnity = false;
+		
+		SetupGameplayDebuggerSupport(Target);
     }
 }

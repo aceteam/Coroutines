@@ -175,6 +175,10 @@ namespace ACETeam_Coroutines
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus Update(FCoroutineExecutor* Exec, float) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode*) override;
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Loop"); }
+#endif
 		};
 
 		template<typename TScopeEndedLambda>
@@ -217,12 +221,20 @@ namespace ACETeam_Coroutines
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+			
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Seq"); }
+#endif
 		};
 		
 		class ACETEAM_COROUTINES_API FOptionalSequence : public FSequence
 		{
 		public:
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("OptionalSeq"); }
+#endif
 		};
 
 		class ACETEAM_COROUTINES_API FSelect : public FCompositeCoroutine
@@ -231,6 +243,10 @@ namespace ACETeam_Coroutines
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Select"); }
+#endif
 		};
 
 		class ACETEAM_COROUTINES_API FTimer : public FCoroutineNode
@@ -253,6 +269,10 @@ namespace ACETeam_Coroutines
 					return Completed;
 				return Running;
 			}
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait (%.3f) seconds"), m_TargetTime); }
+#endif
 		};
 
 		class ACETEAM_COROUTINES_API FFrameTimer : public FCoroutineNode
@@ -278,6 +298,10 @@ namespace ACETeam_Coroutines
 					return Completed;
 				return Running;
 			}
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait (%d) frames"), m_TargetFrames); }
+#endif
 		};
 
 		template <typename F>
@@ -285,12 +309,19 @@ namespace ACETeam_Coroutines
 		{
 			F m_Lambda;
 			float m_Timer = 0.0f;
+#if WITH_GAMEPLAY_DEBUGGER
+			float m_DebugLastTimer = 0.0f;
+#endif
 		public:
 			explicit TDynamicTimer(F const& Lambda) : m_Lambda(Lambda)
 			{}
 			virtual EStatus Start(FCoroutineExecutor* Exec) override
 			{
-				m_Timer = static_cast<float>(m_Lambda());
+				float CurrentTimer = static_cast<float>(m_Lambda());
+#if WITH_GAMEPLAY_DEBUGGER
+				m_DebugLastTimer = CurrentTimer;
+#endif
+				m_Timer = CurrentTimer;
 				return m_Timer > 0.0f ? Running : Completed;
 			}
 			virtual EStatus Update(FCoroutineExecutor* Exec, float dt) override
@@ -300,6 +331,10 @@ namespace ACETeam_Coroutines
 					return Completed;
 				return Running;
 			}
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait (%.3f) seconds (dyn)"), m_DebugLastTimer); }
+#endif
 		};
 
 		class ACETEAM_COROUTINES_API FParallelBase : public FCompositeCoroutine
@@ -313,6 +348,9 @@ namespace ACETeam_Coroutines
 		{
 		public:
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Race"); }
+#endif
 		};
 
 		class ACETEAM_COROUTINES_API FSync : public FParallelBase
@@ -322,6 +360,9 @@ namespace ACETeam_Coroutines
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Sync"); }
+#endif
 		};
 
 		template<typename TCoroutine, typename TChildNode>

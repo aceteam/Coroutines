@@ -36,6 +36,10 @@ namespace ACETeam_Coroutines
 		protected:
 			FCoroutineExecutor* CachedExec = nullptr;
 			TSharedRef<FEventBase, DefaultSPMode> Event;
+
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Wait for event"); }
+#endif
 		};
 
 		template <typename ...TValues>
