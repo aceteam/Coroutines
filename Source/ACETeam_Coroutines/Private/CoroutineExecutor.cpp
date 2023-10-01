@@ -24,6 +24,8 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 	{
 		Info.Status = Info.Node->Start(this);
 
+		TrackNodeStart(Info.Node.Get(), Info.Parent, Info.Status);
+
 		//suspended nodes get thrown into the suspended list
 		if (Info.Status == Suspended)
 		{
@@ -113,6 +115,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutineNode(FCoroutineNode
 void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info, EStatus Status )
 {
 	Info.Node->End(this, Status);
+	TrackNodeEnd(Info.Node.Get(), Status);
 	if (Info.Parent)
 	{
 		Status = Info.Parent->OnChildStopped(this, Status, Info.Node.Get());
@@ -218,6 +221,38 @@ void ACETeam_Coroutines::FCoroutineExecutor::ForceNodeEnd( FCoroutineNode* Node,
 			ProcessNodeEnd(TempInfo, Status);
 		}
 	}
+}
+
+void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node, FCoroutineNode* Parent, EStatus Status)
+{
+#if WITH_GAMEPLAY_DEBUGGER
+	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
+	if (!RowForNode)
+	{
+		int IndexToInsert = DebuggerInfo.Num();
+		FCoroutineNode* Root = nullptr;
+		if (Parent)
+		{
+			const FDebuggerRow* RowForParent = DebuggerInfo.FindByKey(Parent);
+			check(RowForParent);
+			const int IndexForParent = RowForParent - DebuggerInfo.GetData();
+			IndexToInsert = IndexForParent + 1;
+			Root = RowForParent->Root;
+		}
+		RowForNode = &DebuggerInfo.Insert_GetRef(FDebuggerRow{Node, Root}, IndexToInsert);
+	}
+	RowForNode->Entries.Add(FDebuggerEntry{Node->Debug_GetName(), Status, FApp::GetCurrentTime()});
+#endif
+}
+
+void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeEnd(FCoroutineNode* Node, EStatus Status)
+{
+#if WITH_GAMEPLAY_DEBUGGER
+	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
+	check(RowForNode);
+	check(RowForNode->Entries.Num() > 0);
+	RowForNode->Entries.Last().EndTime = FApp::GetCurrentTime();
+#endif
 }
 
 ACETeam_Coroutines::FCoroutineExecutor::EFindNodeResult ACETeam_Coroutines::FCoroutineExecutor::FindCoroutineNode(FCoroutineNodeRef const& CoroutinePtr)

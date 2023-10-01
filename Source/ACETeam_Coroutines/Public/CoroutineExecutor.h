@@ -113,6 +113,26 @@ namespace ACETeam_Coroutines
 
 #if WITH_GAMEPLAY_DEBUGGER
 		friend class FGameplayDebuggerCategory_Coroutines;
+	private:
+		struct FDebuggerEntry
+		{
+			FString Name;
+			EStatus Status;
+			double StartTime;
+			double EndTime = -1.0f;
+		};
+		struct FDebuggerRow
+		{
+			FCoroutineNode* Node;
+			FCoroutineNode* Root;
+			TArray<FDebuggerEntry> Entries;
+
+			bool operator==(const FCoroutineNode* InNode) const { return Node == InNode; }
+		};
+		TArray<FDebuggerRow> DebuggerInfo;
 #endif
+	private:
+		void TrackNodeStart(FCoroutineNode* Node, FCoroutineNode* Parent, EStatus Status);
+		void TrackNodeEnd(FCoroutineNode* Node, EStatus Status);
 	};
 }

@@ -30,7 +30,7 @@ public:
 #if WITH_GAMEPLAY_DEBUGGER
 private:
 	friend class FGameplayDebuggerCategory_Coroutines;
-	
+	friend class FCoroutineExecutor;
 	virtual FString Debug_GetName() const { return FString(); }
 #endif
 };

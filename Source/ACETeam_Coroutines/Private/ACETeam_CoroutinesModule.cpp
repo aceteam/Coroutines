@@ -3,6 +3,7 @@
 #include "ACETeam_CoroutinesModule.h"
 
 #include "CoroutineLog.h"
+#include "GameplayDebugger/GameplayDebuggerCategory_Coroutines.h"
 
 #if WITH_GAMEPLAY_DEBUGGER
 #include "GameplayDebugger.h"

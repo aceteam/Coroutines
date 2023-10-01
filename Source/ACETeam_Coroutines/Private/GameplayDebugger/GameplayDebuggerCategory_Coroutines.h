@@ -16,6 +16,8 @@ public:
 	static TSharedRef<FGameplayDebuggerCategory> MakeInstance();
 
 	virtual void DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext) override;
+
+	double GraphTimeWindow = 30.0;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER
