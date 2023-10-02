@@ -45,6 +45,8 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 	//suspended nodes get thrown into the suspended list
 	if (Info.Status == Suspended)
 	{
+		TrackNodeSuspendFromUpdate(Info.Node.Get());
+		
 		m_SuspendedNodes.Emplace(MoveTemp(Info));
 		return true;
 	}
@@ -168,6 +170,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
 	if (Info)
 	{
 		Node->End(this, Aborted);
+		TrackNodeEnd(Node, Aborted);
 		Info->Status = Aborted;
 	}
 	else
@@ -176,6 +179,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
 		if (Info)
 		{
 			Node->End(this, Aborted);
+			TrackNodeEnd(Node, Aborted);
 			m_ActiveNodes.RemoveAt(m_ActiveNodes.ConvertPointerToIndex(Info));
 		}
 	}
@@ -237,11 +241,34 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 			check(RowForParent);
 			const int IndexForParent = RowForParent - DebuggerInfo.GetData();
 			IndexToInsert = IndexForParent + 1;
-			Root = RowForParent->Root;
+			if (RowForParent->Root)
+			{
+				Root = RowForParent->Root;
+			}
+		}
+		else
+		{
+			Root = Node;
 		}
 		RowForNode = &DebuggerInfo.Insert_GetRef(FDebuggerRow{Node, Root}, IndexToInsert);
 	}
+	double CurrentTime = FApp::GetCurrentTime();
+	if (RowForNode->Entries.Num() > 0 && CurrentTime - RowForNode->Entries.Last().EndTime < 0.03)
+	{
+		//just coalesce with previous entry
+		return;
+	}
 	RowForNode->Entries.Add(FDebuggerEntry{Node->Debug_GetName(), Status, FApp::GetCurrentTime()});
+#endif
+}
+
+void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeSuspendFromUpdate(FCoroutineNode* Node)
+{
+#if WITH_GAMEPLAY_DEBUGGER
+	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
+	check(RowForNode);
+	check(RowForNode->Entries.Num() > 0);
+	RowForNode->Entries.Last().Status = Suspended;
 #endif
 }
 
@@ -287,6 +314,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutineNode* Coroutin
 			else
 			{
 				Root->End(this, Aborted);
+				TrackNodeEnd(Root, Aborted);
 				It->Status = Aborted;
 				return;
 			}
@@ -303,6 +331,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutineNode* Coroutin
 				else
 				{
 					Root->End(this, Aborted);
+					TrackNodeEnd(Root, Aborted);
 					m_ActiveNodes.RemoveAt(m_ActiveNodes.ConvertPointerToIndex(It));
 					return;
 				}

@@ -133,6 +133,7 @@ namespace ACETeam_Coroutines
 #endif
 	private:
 		void TrackNodeStart(FCoroutineNode* Node, FCoroutineNode* Parent, EStatus Status);
+		void TrackNodeSuspendFromUpdate(FCoroutineNode* Node);
 		void TrackNodeEnd(FCoroutineNode* Node, EStatus Status);
 	};
 }
