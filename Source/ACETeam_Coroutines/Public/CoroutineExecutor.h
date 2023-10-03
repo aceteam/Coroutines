@@ -124,9 +124,11 @@ namespace ACETeam_Coroutines
 		struct FDebuggerRow
 		{
 			FCoroutineNode* Node;
+			FCoroutineNode* Parent;
 			FCoroutineNode* Root;
+			bool bIsDeferredNodeGenerator;
+			bool bIsLeaf = true;
 			TArray<FDebuggerEntry> Entries;
-
 			bool operator==(const FCoroutineNode* InNode) const { return Node == InNode; }
 		};
 		TArray<FDebuggerRow> DebuggerInfo;

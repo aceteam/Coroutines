@@ -51,5 +51,15 @@ public class ACETeam_Coroutines : ModuleRules
 		bUseUnity = false;
 		
 		SetupGameplayDebuggerSupport(Target);
+		if (Target.bUseGameplayDebugger)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Slate",
+					"SlateCore",	
+				}
+			);
+		}
     }
 }

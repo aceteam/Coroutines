@@ -1,10 +1,13 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 
+#if WITH_GAMEPLAY_DEBUGGER
+
 #include "GameplayDebuggerCategory_Coroutines.h"
 
 #include "CoroutineExecutor.h"
 #include "CoroutinesWorldSubsystem.h"
 #include "Engine/Canvas.h"
+#include "Fonts/FontMeasure.h"
 
 using namespace ACETeam_Coroutines;
 
@@ -61,11 +64,23 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 		}
 	};
 
-	double LastRootY = Y + RowHeight*0.8;
+	const TSharedRef< FSlateFontMeasure > FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+	auto FontInfo = GEngine->GetTinyFont()->GetLegacySlateFontInfo();
+
+	FCanvasTileItem BackgroundTile(FVector2d{X-GraphMargin*0.1, Y}, FVector2D(GraphWidth + GraphMargin*0.2, FMath::Max(LastHeight, RowHeight*30)), FLinearColor::Black.CopyWithNewOpacity(0.3f));
+	BackgroundTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
+	BackgroundTile.Draw(FCanvas);
+
+	double LastRootY = Y + RowHeight*0.6;
 	for (const auto Exec : ExecutorsToDebug)
 	{
 		for (auto& Row : Exec->DebuggerInfo)
 		{
+			bool bSkipInCompactMode = Row.Node != Row.Root && !Row.bIsLeaf;
+			if (bCompactMode && bSkipInCompactMode)
+			{
+				continue;
+			}
 			const auto* FirstEntryToRender = Row.Entries.FindByPredicate([&](const FCoroutineExecutor::FDebuggerEntry& Entry)
 			{
 				return Entry.EndTime < 0.0 || Entry.EndTime >= StartTime;
@@ -84,28 +99,31 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 				FVector2D EntryStartPos(X + (CappedStartTime - StartTime) * TimeToPixels, Y);
 				const double CurrentEndTime = Entry.EndTime < 0.0 ? CurrentTime : Entry.EndTime;
 				const double EntryDuration = CurrentEndTime - CappedStartTime;
-				if (CurrentEndTime - Entry.StartTime < 0.01)
-				{
-					continue;
-				}
 				if (DrawnEntries == 0)
 				{
 					FirstEntryX = EntryStartPos.X;
 				}
 				++DrawnEntries;
-				const double EntryWidth = EntryDuration * TimeToPixels;
+				const double EntryWidth = FMath::Max(1.0, EntryDuration * TimeToPixels);
 				FCanvasTileItem EntryTile(EntryStartPos, FVector2D(EntryWidth, RowHeight), ColorForStatus(Entry.Status));
 				EntryTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 				EntryTile.Draw(FCanvas);
 				EntryStartPos.X += 4.0;
-				FCanvasTextItem EntryText(EntryStartPos, FText::FromString(Entry.Name), GEngine->GetSmallFont(), FLinearColor::White);
-				EntryText.Draw(FCanvas);
+				if (Entry.Name.Len() > 0)
+				{
+					auto TextMeasure = FontMeasure->Measure(Entry.Name, FontInfo, 1);
+					if (TextMeasure.X + 5.0 < EntryWidth)
+					{
+						FCanvasTextItem EntryText(EntryStartPos, FText::FromString(Entry.Name), GEngine->GetTinyFont(), FLinearColor::White);
+						EntryText.Draw(FCanvas);
+					}
+				}
 			}
 			if (DrawnEntries == 0)
 				continue;
 			if (Row.Root != Row.Node)
 			{
-				FCanvasTileItem EntryTile(FVector2D(FirstEntryX, LastRootY), FVector2D(2.0, Y - LastRootY), FLinearColor::Black.CopyWithNewOpacity(0.5f));
+				FCanvasTileItem EntryTile(FVector2D(FirstEntryX, LastRootY), FVector2D(2.0, Y - LastRootY + RowHeight*0.4), FLinearColor::Black.CopyWithNewOpacity(0.5f));
 				EntryTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 				EntryTile.Draw(FCanvas);
 			}
@@ -115,5 +133,8 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 			}
 			Y += RowHeight+SpaceBetweenRows;
 		}
+		LastHeight = Y;
 	}
 }
+
+#endif // WITH_GAMEPLAY_DEBUGGER

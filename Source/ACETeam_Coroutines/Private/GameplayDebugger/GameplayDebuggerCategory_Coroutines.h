@@ -17,7 +17,11 @@ public:
 
 	virtual void DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext) override;
 
-	double GraphTimeWindow = 30.0;
+	double GraphTimeWindow = 10.0;
+
+	double LastHeight = 0.0;
+
+	bool bCompactMode = true;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER

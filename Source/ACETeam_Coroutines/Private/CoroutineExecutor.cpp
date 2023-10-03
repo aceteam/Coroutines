@@ -160,6 +160,26 @@ void ACETeam_Coroutines::FCoroutineExecutor::Cleanup()
 {
 	auto Pred = [](FNodeExecInfo const& Info) { return Info.Status == Aborted; };
 	m_SuspendedNodes.RemoveAllSwap(Pred);
+
+#if WITH_GAMEPLAY_DEBUGGER
+	const double DropTime = FApp::GetCurrentTime() - 60.0f;
+	for (auto RowIt = DebuggerInfo.CreateIterator(); RowIt; ++RowIt)
+	{
+		for (auto It = RowIt->Entries.CreateIterator(); It; ++It)
+		{
+			if (It->EndTime < 0.0f)
+				continue;
+			if (It->EndTime < DropTime)
+			{
+				It.RemoveCurrent();
+			}
+		}
+		if (RowIt->Entries.Num() == 0)
+		{
+			RowIt.RemoveCurrent();
+		}
+	}
+#endif
 }
 
 void ACETeam_Coroutines::FCoroutineExecutor::AbortNode( FCoroutineNode* Node )
@@ -235,28 +255,50 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 	{
 		int IndexToInsert = DebuggerInfo.Num();
 		FCoroutineNode* Root = nullptr;
+		FDebuggerRow* DeferredRowToReassign = nullptr;
 		if (Parent)
 		{
-			const FDebuggerRow* RowForParent = DebuggerInfo.FindByKey(Parent);
+			FDebuggerRow* RowForParent = DebuggerInfo.FindByKey(Parent);
 			check(RowForParent);
+			RowForParent->bIsLeaf = false;
 			const int IndexForParent = RowForParent - DebuggerInfo.GetData();
 			IndexToInsert = IndexForParent + 1;
 			if (RowForParent->Root)
 			{
 				Root = RowForParent->Root;
 			}
+			if (RowForParent->bIsDeferredNodeGenerator)
+			{
+				for (int i = IndexToInsert; i < DebuggerInfo.Num(); ++i)
+				{
+					if (DebuggerInfo[i].Parent == Parent)
+					{
+						RowForNode = &DebuggerInfo[i];
+						RowForNode->Node = Node;
+						goto RowAssigned;
+					}
+				}
+			}
 		}
 		else
 		{
 			Root = Node;
 		}
-		RowForNode = &DebuggerInfo.Insert_GetRef(FDebuggerRow{Node, Root}, IndexToInsert);
+		RowForNode = &DebuggerInfo.Insert_GetRef(FDebuggerRow{Node, Parent, Root, Node->Debug_IsDeferredNodeGenerator()}, IndexToInsert);
 	}
-	double CurrentTime = FApp::GetCurrentTime();
-	if (RowForNode->Entries.Num() > 0 && CurrentTime - RowForNode->Entries.Last().EndTime < 0.03)
+RowAssigned:
+	if (RowForNode->Entries.Num() > 0)
 	{
-		//just coalesce with previous entry
-		return;
+	    double CurrentTime = FApp::GetCurrentTime();
+		FDebuggerEntry& LastEntry = RowForNode->Entries.Last();
+		//coalesce very short entries, if they happened recently
+		if ((LastEntry.EndTime - LastEntry.StartTime) < 0.03 && (CurrentTime - LastEntry.EndTime) < 0.03)
+		{
+			LastEntry.Name = Node->Debug_GetName();
+			LastEntry.Status = Status;
+			LastEntry.EndTime = -1.0;
+			return;
+		}
 	}
 	RowForNode->Entries.Add(FDebuggerEntry{Node->Debug_GetName(), Status, FApp::GetCurrentTime()});
 #endif
@@ -276,9 +318,13 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeEnd(FCoroutineNode* Node, 
 {
 #if WITH_GAMEPLAY_DEBUGGER
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
-	check(RowForNode);
-	check(RowForNode->Entries.Num() > 0);
-	RowForNode->Entries.Last().EndTime = FApp::GetCurrentTime();
+	if (RowForNode)
+	{
+		if (RowForNode->Entries.Num() > 0)
+		{
+			RowForNode->Entries.Last().EndTime = FApp::GetCurrentTime();
+		}
+	}
 #endif
 }
 

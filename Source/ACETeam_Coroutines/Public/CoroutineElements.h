@@ -90,6 +90,9 @@ namespace ACETeam_Coroutines
 				}
 				m_Child.Reset(); //Child has finished its execution, so it can be released
 			};
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual bool Debug_IsDeferredNodeGenerator() const override { return true; }
+#endif
 		};
 
 		template <typename TLambda>
@@ -125,6 +128,9 @@ namespace ACETeam_Coroutines
 		class ACETEAM_COROUTINES_API FWaitForeverNode : public FCoroutineNode
 		{
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Wait forever"); }
+#endif
 		};
 	}
 
@@ -271,7 +277,7 @@ namespace ACETeam_Coroutines
 			}
 
 #if WITH_GAMEPLAY_DEBUGGER
-			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait (%.3f) seconds"), m_TargetTime); }
+			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait %.1fs"), m_TargetTime); }
 #endif
 		};
 
@@ -300,7 +306,7 @@ namespace ACETeam_Coroutines
 			}
 
 #if WITH_GAMEPLAY_DEBUGGER
-			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait (%d) frames"), m_TargetFrames); }
+			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait %d frames"), m_TargetFrames); }
 #endif
 		};
 
@@ -333,7 +339,7 @@ namespace ACETeam_Coroutines
 			}
 
 #if WITH_GAMEPLAY_DEBUGGER
-			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait (%.3f) seconds (dyn)"), m_DebugLastTimer); }
+			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait %.1fs"), m_DebugLastTimer); }
 #endif
 		};
 
