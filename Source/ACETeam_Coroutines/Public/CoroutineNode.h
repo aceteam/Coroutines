@@ -33,6 +33,7 @@ private:
 	friend class FCoroutineExecutor;
 	virtual FString Debug_GetName() const { return FString(); }
 	virtual bool Debug_IsDeferredNodeGenerator() const { return false; }
+	virtual bool Debug_IsDebuggerScope() const { return false; }
 #endif
 };
 	

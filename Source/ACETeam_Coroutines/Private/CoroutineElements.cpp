@@ -1,7 +1,9 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
+
 #include "CoroutineElements.h"
 
 #include "CoroutineExecutor.h"
+#include "CoroutineLog.h"
 
 namespace ACETeam_Coroutines
 {
@@ -125,10 +127,27 @@ namespace Detail
 			Exec->AbortNode(m_Child.ToSharedRef());
 	}
 
+	EStatus FCoroutineDecorator::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	{
+		return Status;
+	}
+
 	EStatus FCoroutineDecorator::Start( FCoroutineExecutor* Exec )
 	{
 		Exec->EnqueueCoroutineNode(m_Child.ToSharedRef(), this);
 		return Suspended;
+	}
+
+	void FCoroutineDecorator::AddChild(FCoroutineNodeRef const& Child)
+	{
+#if DO_CHECK
+		if (m_Child)
+		{
+			UE_LOG(LogACETeamCoroutines, Error, TEXT("Trying to give a decorator more than one child"));
+			UE_DEBUG_BREAK();
+		}
+#endif
+		m_Child = Child; 
 	}
 
 	EStatus FFork::Start( FCoroutineExecutor* Exec )
@@ -192,5 +211,10 @@ FCoroutineNodeRef _Nop()
 FCoroutineNodeRef _WaitForever()
 {
 	return MakeShared<Detail::FWaitForeverNode, DefaultSPMode>();
+}
+
+Detail::FNamedScopeHelper _NamedScope(FString const& RootName)
+{
+	return Detail::FNamedScopeHelper(RootName);
 }
 }

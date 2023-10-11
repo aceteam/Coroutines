@@ -153,16 +153,9 @@ namespace ACETeam_Coroutines
 		public:
 			// Start is normal behavior for decorators, but not forced
 			virtual EStatus Start(FCoroutineExecutor* Executor) override;
-			void AddChild(FCoroutineNodeRef const& Child)
-			{
-				if (m_Child)
-				{
-					//UE_LOG(LogACETeam_Coroutines, Error, TEXT("Trying to give a decorator more than one child"));
-					UE_DEBUG_BREAK();
-				}
-				m_Child = Child; 
-			}
+			void AddChild(FCoroutineNodeRef const& Child);
 			virtual void End(FCoroutineExecutor* Executor, EStatus Status) override;
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 			virtual int GetNumChildren() { return m_Child ? 1 : 0; }
 		};
 
@@ -202,6 +195,54 @@ namespace ACETeam_Coroutines
 			{
 				m_OnScopeEnd();
 				return FCoroutineDecorator::End(Exec, Status);
+			}
+		};
+
+		template <typename TScopeLambda>
+		struct TScopeHelper
+		{
+			TScopeLambda m_ScopeLambda;
+
+			TScopeHelper(TScopeLambda& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
+
+			template <typename TChild>
+			FCoroutineNodeRef operator() (TChild&& ScopeBody)
+			{
+				auto Scope = MakeShared<TScope<TScopeLambda>, DefaultSPMode>(m_ScopeLambda);
+				AddCoroutineChild(Scope, ScopeBody);
+				return Scope;
+			}
+		};
+
+		class ACETEAM_COROUTINES_API FNamedScopeNode : public FCoroutineDecorator
+		{
+		protected:
+#if WITH_GAMEPLAY_DEBUGGER
+			FString Name;
+			virtual FString Debug_GetName() const override { return Name; }
+			virtual bool Debug_IsDebuggerScope() const override { return true; }
+#endif
+		public:
+			FNamedScopeNode(FString&& InName)
+#if WITH_GAMEPLAY_DEBUGGER
+				:Name(InName)
+#endif
+			{}
+			
+		};
+
+		struct ACETEAM_COROUTINES_API FNamedScopeHelper
+		{
+			FString Name;
+
+			FNamedScopeHelper(FString const& InName) : Name(InName) {}
+
+			template <typename TChild>
+			FCoroutineNodeRef operator[] (TChild&& Body)
+			{
+				auto NamedRoot = MakeShared<FNamedScopeNode, DefaultSPMode> (MoveTemp(Name));
+				AddCoroutineChild(NamedRoot, Body);
+				return NamedRoot;
 			}
 		};
 
@@ -439,22 +480,6 @@ namespace ACETeam_Coroutines
 			AddCompositeChildren(Comp, Children...);
 			return Comp;
 		}
-
-		template <typename TScopeLambda>
-		struct TScopeHelper
-		{
-			TScopeLambda m_ScopeLambda;
-
-			TScopeHelper(TScopeLambda& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
-
-			template <typename TChild>
-			FCoroutineNodeRef operator() (TChild&& ScopeBody)
-			{
-				auto Scope = MakeShared<TScope<TScopeLambda>, DefaultSPMode>(m_ScopeLambda);
-				AddCoroutineChild(Scope, ScopeBody);
-				return Scope;
-			}
-		};
 	}
 
 	//Runs its arguments in sequence until one returns false, propagates failure upwards
@@ -571,6 +596,11 @@ namespace ACETeam_Coroutines
 		Detail::AddCoroutineChild(Fork, Body);
 		return Fork;
 	}
+
+	/**
+	 * Used as a way to give a name to a coroutine that will show up in the debugger, so it won't just be an anonymous block running
+	 */
+	Detail::FNamedScopeHelper ACETEAM_COROUTINES_API _NamedScope(FString const& RootName);
 
 	namespace Detail
 	{

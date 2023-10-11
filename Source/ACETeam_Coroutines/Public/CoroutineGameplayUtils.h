@@ -19,8 +19,11 @@ namespace ACETeam_Coroutines
 			FSoundLoopNode(UObject* Owner, TFunction<UAudioComponent* ()> const & _Lambda, float _FadeOutTime);
 
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
-
+			virtual EStatus Update(FCoroutineExecutor* Exec, float dt) override;
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("SoundLoop"); }
+#endif
 		};
 	}
 

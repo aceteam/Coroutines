@@ -125,8 +125,9 @@ namespace ACETeam_Coroutines
 		{
 			FCoroutineNode* Node;
 			FCoroutineNode* Parent;
-			FCoroutineNode* Root;
+			FCoroutineNode* Scope;
 			bool bIsDeferredNodeGenerator;
+			bool bIsScope;
 			bool bIsLeaf = true;
 			TArray<FDebuggerEntry> Entries;
 			bool operator==(const FCoroutineNode* InNode) const { return Node == InNode; }

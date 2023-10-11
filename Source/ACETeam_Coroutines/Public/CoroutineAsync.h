@@ -61,6 +61,9 @@ namespace ACETeam_Coroutines
 			{
 				CachedExec = nullptr;
 			}
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Async"); }
+#endif
 		private:
 			ENamedThreads::Type NamedThread;
 			TLambda Lambda;

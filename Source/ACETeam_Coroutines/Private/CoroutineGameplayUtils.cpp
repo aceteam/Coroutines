@@ -18,11 +18,18 @@ ACETeam_Coroutines::EStatus ACETeam_Coroutines::Detail::FSoundLoopNode::Start(FC
 		if (ensure(SpawnedComponent.IsValid()))
 		{
 			//This node is only supposed to be used with looping sounds
-			check(SpawnedComponent->Sound->IsLooping());
+			ensure(SpawnedComponent->Sound->IsLooping());
 		}
-		return SpawnedComponent != nullptr ? Suspended : Failed;
+		return SpawnedComponent != nullptr ? Running : Failed;
 	}
 	return Failed;
+}
+
+ACETeam_Coroutines::EStatus ACETeam_Coroutines::Detail::FSoundLoopNode::Update(FCoroutineExecutor* Exec, float dt)
+{
+	if (WeakOwner.IsStale() || SpawnedComponent.IsStale())
+		return Failed;
+	return Running;
 }
 
 void ACETeam_Coroutines::Detail::FSoundLoopNode::End(FCoroutineExecutor* Exec, EStatus Status)

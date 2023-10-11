@@ -72,6 +72,9 @@ namespace ACETeam_Coroutines
 				Property = FMath::Lerp(StartValue, TargetValue, t);
 				return CurAlpha < 1.0f ? Running : Completed;
 			}
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Tween"); }
+#endif
 
 		public:
 			TObjectPropertyTweenNode(UObject* _Obj, T& _Property, T _TargetVal, float _Speed, TEaseFunc const& _EaseFunc)

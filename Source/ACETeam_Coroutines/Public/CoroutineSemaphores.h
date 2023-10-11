@@ -29,6 +29,9 @@ namespace ACETeam_Coroutines
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
+#if WITH_GAMEPLAY_DEBUGGER
+			virtual FString Debug_GetName() const override { return TEXT("Semaphore"); }
+#endif
 		};
 
 		typedef TSharedRef<FSemaphoreHandlerNode, DefaultSPMode> FSemaphoreHandlerRef;

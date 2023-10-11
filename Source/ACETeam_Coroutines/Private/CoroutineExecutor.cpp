@@ -254,8 +254,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 	if (!RowForNode)
 	{
 		int IndexToInsert = DebuggerInfo.Num();
-		FCoroutineNode* Root = nullptr;
-		FDebuggerRow* DeferredRowToReassign = nullptr;
+		FCoroutineNode* Scope = nullptr;
 		if (Parent)
 		{
 			FDebuggerRow* RowForParent = DebuggerInfo.FindByKey(Parent);
@@ -263,10 +262,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 			RowForParent->bIsLeaf = false;
 			const int IndexForParent = RowForParent - DebuggerInfo.GetData();
 			IndexToInsert = IndexForParent + 1;
-			if (RowForParent->Root)
-			{
-				Root = RowForParent->Root;
-			}
+			Scope = RowForParent->bIsScope ? Parent : RowForParent->Scope;
 			if (RowForParent->bIsDeferredNodeGenerator)
 			{
 				for (int i = IndexToInsert; i < DebuggerInfo.Num(); ++i)
@@ -280,11 +276,10 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 				}
 			}
 		}
-		else
-		{
-			Root = Node;
-		}
-		RowForNode = &DebuggerInfo.Insert_GetRef(FDebuggerRow{Node, Parent, Root, Node->Debug_IsDeferredNodeGenerator()}, IndexToInsert);
+		RowForNode = &DebuggerInfo.Insert_GetRef(
+			FDebuggerRow{
+				Node, Parent, Scope, Node->Debug_IsDeferredNodeGenerator(), Parent == nullptr || Node->Debug_IsDebuggerScope() 
+			}, IndexToInsert);
 	}
 RowAssigned:
 	if (RowForNode->Entries.Num() > 0)

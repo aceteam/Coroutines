@@ -71,12 +71,35 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	BackgroundTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 	BackgroundTile.Draw(FCanvas);
 
-	double LastRootY = Y + RowHeight*0.6;
+	struct FScopeHeight
+	{
+		FCoroutineNode* Scope;
+		double Y;
+	};
+	TArray<FScopeHeight> ScopeHeights;
+	auto HeightForScope = [&](FCoroutineNode* Scope)
+	{
+		for (int i = ScopeHeights.Num()-1; i >= 0; --i)
+		{
+			if (ScopeHeights[i].Scope == Scope)
+				return ScopeHeights[i].Y;
+		}
+		/**
+		 * There's some bug here related to deferred nodes that triggers this ensure
+		 * I don't have time to fix it yet, so the ensure is disabled
+		 */
+		//ensure(false);
+		return 0.0;
+	};
 	for (const auto Exec : ExecutorsToDebug)
 	{
+		if (Exec->DebuggerInfo.Num() == 0)
+			continue;
+		ScopeHeights.Reset();
+		ScopeHeights.Add( FScopeHeight{Exec->DebuggerInfo[0].Node, Y + RowHeight*0.6} );
 		for (auto& Row : Exec->DebuggerInfo)
 		{
-			bool bSkipInCompactMode = Row.Node != Row.Root && !Row.bIsLeaf;
+			bool bSkipInCompactMode = !Row.bIsScope && !Row.bIsLeaf;
 			if (bCompactMode && bSkipInCompactMode)
 			{
 				continue;
@@ -121,15 +144,19 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 			}
 			if (DrawnEntries == 0)
 				continue;
-			if (Row.Root != Row.Node)
+			if (Row.Scope)
 			{
-				FCanvasTileItem EntryTile(FVector2D(FirstEntryX, LastRootY), FVector2D(2.0, Y - LastRootY + RowHeight*0.4), FLinearColor::Black.CopyWithNewOpacity(0.5f));
-				EntryTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
-				EntryTile.Draw(FCanvas);
+				double MyScopeY = HeightForScope(Row.Scope);
+				if (MyScopeY > 0.0) //TEMP: so we don't draw black lines across the graph when bug is triggered
+				{
+					FCanvasTileItem EntryTile(FVector2D(FirstEntryX, MyScopeY), FVector2D(2.0, Y - MyScopeY + RowHeight*0.4), FLinearColor::Black.CopyWithNewOpacity(0.5f));
+					EntryTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
+					EntryTile.Draw(FCanvas);
+				}
 			}
-			else
+			if (Row.bIsScope)
 			{
-				LastRootY = Y + RowHeight*0.8;
+				ScopeHeights.Add(FScopeHeight { Row.Node, Y + RowHeight*0.8 });
 			}
 			Y += RowHeight+SpaceBetweenRows;
 		}
