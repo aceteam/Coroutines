@@ -18,6 +18,9 @@ FGameplayDebuggerCategory_Coroutines::FGameplayDebuggerCategory_Coroutines()
 	BindKeyPress(EKeys::RightBracket.GetFName(), FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Coroutines::ToggleCompactMode, EGameplayDebuggerInputMode::Local);
 }
 
+static FString GCoroutineDebuggerFilter;
+static FAutoConsoleVariableRef CVarCoroutineDebuggerFilter(TEXT("coroutine.DebuggerFilter"), GCoroutineDebuggerFilter, TEXT("Only show coroutines whose root scope contain this string in their name"), ECVF_Default);
+
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Coroutines::MakeInstance()
 {
 	return MakeShared<FGameplayDebuggerCategory_Coroutines>();
@@ -101,8 +104,28 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 			continue;
 		ScopeHeights.Reset();
 		ScopeHeights.Add( FScopeHeight{Exec->DebuggerInfo[0].Node, Y + RowHeight*0.6} );
-		for (auto& Row : Exec->DebuggerInfo)
+		for (auto RowIt = Exec->DebuggerInfo.CreateConstIterator(); RowIt; ++RowIt)
 		{
+			if (!GCoroutineDebuggerFilter.IsEmpty())
+			{
+				auto IsRootScope = [](auto RowIt)
+				{
+					return RowIt->bIsScope && RowIt->Parent == nullptr;
+				};
+				if (IsRootScope(RowIt))
+				{
+					while (RowIt && ensure(RowIt->Entries.Num() > 0) && !RowIt->Entries.Last().Name.Contains(GCoroutineDebuggerFilter))
+					{
+						do
+						{
+							++RowIt;
+						} while(RowIt && !IsRootScope(RowIt));
+					}
+					if (!RowIt)
+						break;
+				}
+			}
+			auto& Row = *RowIt;
 			bool bSkipInCompactMode = !Row.bIsScope && !Row.bIsLeaf;
 			if (bCompactMode && bSkipInCompactMode)
 			{
