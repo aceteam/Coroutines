@@ -57,7 +57,8 @@ public class ACETeam_Coroutines : ModuleRules
 				new string[]
 				{
 					"Slate",
-					"SlateCore",	
+					"SlateCore",
+					"InputCore",
 				}
 			);
 		}

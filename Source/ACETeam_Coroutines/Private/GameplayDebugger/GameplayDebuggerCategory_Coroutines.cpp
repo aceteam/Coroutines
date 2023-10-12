@@ -14,6 +14,8 @@ using namespace ACETeam_Coroutines;
 FGameplayDebuggerCategory_Coroutines::FGameplayDebuggerCategory_Coroutines()
 {
 	bShowOnlyWithDebugActor = false;
+
+	BindKeyPress(EKeys::RightBracket.GetFName(), FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Coroutines::ToggleCompactMode, EGameplayDebuggerInputMode::Local);
 }
 
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Coroutines::MakeInstance()
@@ -24,6 +26,8 @@ TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Coroutines::Make
 void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	FGameplayDebuggerCanvasContext& CanvasContext)
 {
+	CanvasContext.Printf(TEXT("\n[{yellow}%s{white}] Toggle Compact mode"), *GetInputHandlerDescription(0));
+	
 	UCanvas* Canvas = CanvasContext.Canvas.Get();
 	if (!Canvas)
 		return;
@@ -162,6 +166,11 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 		}
 		LastHeight = Y;
 	}
+}
+
+void FGameplayDebuggerCategory_Coroutines::ToggleCompactMode()
+{
+	bCompactMode = !bCompactMode;
 }
 
 #endif // WITH_GAMEPLAY_DEBUGGER

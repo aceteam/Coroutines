@@ -4,7 +4,7 @@
 
 #include "CoroutineExecutor.h"
 
-UCoroutinesWorldSubsystem& UCoroutinesWorldSubsystem::Get(UObject* WorldContextObject)
+UCoroutinesWorldSubsystem& UCoroutinesWorldSubsystem::Get(const UObject* WorldContextObject)
 {
 	check(WorldContextObject);
 	auto World = WorldContextObject->GetWorld();

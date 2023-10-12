@@ -18,7 +18,7 @@ class ACETEAM_COROUTINES_API UCoroutinesWorldSubsystem : public UTickableWorldSu
 	GENERATED_BODY()
 	
 public:
-	static UCoroutinesWorldSubsystem& Get(UObject* WorldContextObject);
+	static UCoroutinesWorldSubsystem& Get(const UObject* WorldContextObject);
 
 	void StartCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
 
