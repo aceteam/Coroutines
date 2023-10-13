@@ -186,7 +186,7 @@ namespace ACETeam_Coroutines
 			TScopeEndedLambda m_OnScopeEnd;
 		
 		public:
-			TScope(TScopeEndedLambda& OnScopeEnd) : m_OnScopeEnd(OnScopeEnd){}
+			TScope(TScopeEndedLambda const& OnScopeEnd) : m_OnScopeEnd(OnScopeEnd){}
 			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override
 			{
 				return Status;
@@ -203,13 +203,13 @@ namespace ACETeam_Coroutines
 		{
 			TScopeLambda m_ScopeLambda;
 
-			TScopeHelper(TScopeLambda& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
+			TScopeHelper(TScopeLambda const& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
 
 			template <typename TChild>
-			FCoroutineNodeRef operator() (TChild&& ScopeBody)
+			FCoroutineNodeRef operator() (TChild&& Body)
 			{
 				auto Scope = MakeShared<TScope<TScopeLambda>, DefaultSPMode>(m_ScopeLambda);
-				AddCoroutineChild(Scope, ScopeBody);
+				AddCoroutineChild(Scope, Body);
 				return Scope;
 			}
 		};
@@ -583,7 +583,7 @@ namespace ACETeam_Coroutines
 	//  ... child
 	//)
 	template<typename TOnScopeExit>
-	Detail::TScopeHelper<TOnScopeExit> _Scope(TOnScopeExit&& OnScopeExit)
+	Detail::TScopeHelper<TOnScopeExit> _Scope(TOnScopeExit const& OnScopeExit)
 	{
 		return Detail::TScopeHelper<TOnScopeExit>(OnScopeExit);
 	}
@@ -604,8 +604,13 @@ namespace ACETeam_Coroutines
 
 	namespace Detail
 	{
-		template <typename TLambda, typename TLambdaRetType = void>
+		template <typename TLambda, typename TLambdaRetType = void, typename Enable=void>
 		struct TAddWeakLambdaHelper
+		{
+		};
+
+		template <typename TLambda>
+		struct TAddWeakLambdaHelper<TLambda, void>
 		{
 			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
@@ -622,8 +627,9 @@ namespace ACETeam_Coroutines
 			}
 		};
 
-		template <typename TLambda>
-		struct TAddWeakLambdaHelper<TLambda, FCoroutineNodeRef>
+		template <typename TLambda, typename TCoroutine>
+		struct TAddWeakLambdaHelper<TLambda, TSharedRef<TCoroutine, DefaultSPMode>,
+			typename TEnableIf<TIsDerivedFrom<TCoroutine, FCoroutineNode>::Value, void>::Type>
 		{
 			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
 			{
