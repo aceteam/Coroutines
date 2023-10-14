@@ -148,10 +148,10 @@ In addition it displays any ```_NamedScope``` blocks. These have two functions:
 Compact mode can be toggled with the shortcut displayed on screen (Shift+RightBracket).
 
 The colors of the strips shown in the debugger represent their state.
-- <font color="gree">Green</font> means it completed successfully
-- <font color="red">Red</font> means it returned a failure (Note that failures can be used to interrupt ```_Loop```, ```_Seq``` and other blocks, so they don't necessarily imply a failure in the global sense)
-- <font color="yellow">Yellow</font> means it's suspended, i.e. tracked by the system but not actively being evaluated.
-- <font color="blue">Blue</font> means it's being polled continuously every frame
+- 🟩 Green means it completed successfully
+- 🟥 Red means it returned a failure (Note that failures can be used to interrupt ```_Loop```, ```_Seq``` and other blocks, so they don't necessarily imply a failure in the global sense)
+- 🟨 Yellow means it's suspended, i.e. tracked by the system but not actively being evaluated.
+- 🟦 Blue means it's being polled continuously every frame
 
 ## Future work planned
 - Support for requesting async loads of objects / classes while suspending execution.
