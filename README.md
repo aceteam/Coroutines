@@ -139,7 +139,20 @@ If you activate the Gameplay Debugger (***gdt.Toggle*** console command), you'll
 
 If you're using the system heavily you may run out of vertical space to display all of the coroutines currently running. You can use the ***gdt.Coroutine.SetFilter*** console command to reduce those shown to those whose root name contains one of the filter strings.
 
-You can use the ```_NamedScope``` block to improve the readability of the information displayed in the debugger.
+By default, the debugger displays in "compact mode", which only shows the root of the coroutine and "leaf nodes", which are those with no children, e.g. lambdas, and waits.
+
+In addition it displays any ```_NamedScope``` blocks. These have two functions:
+- they can replace the name of the root of a coroutine in the debugger, or 
+- they can be nested so you can more easily track the lifecycle of a complex coroutine in the debugger.
+
+Compact mode can be toggled with the shortcut displayed on screen (Shift+RightBracket).
+
+The colors of the strips shown in the debugger represent their state.
+- <font color="gree">Green</font> means it completed successfully
+- <font color="red">Red</font> means it returned a failure (Note that failures can be used to interrupt ```_Loop```, ```_Seq``` and other blocks, so they don't necessarily imply a failure in the global sense)
+- <font color="yellow">Yellow</font> means it's suspended, i.e. tracked by the system but not actively being evaluated.
+- <font color="blue">Blue</font> means it's being polled continuously every frame
 
 ## Future work planned
 - Support for requesting async loads of objects / classes while suspending execution.
+- Further improvements to debugger usability
