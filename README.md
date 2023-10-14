@@ -133,6 +133,8 @@ Other headers that expose additional features:
 
 ## Visual Debugger
 
+![Coroutines Visual Debugger as part of the Unreal Engine Gameplay Debugger](docs/visual-debugger.png)
+
 If you activate the Gameplay Debugger (***gdt.Toggle*** console command), you'll see there is a Coroutines category that displays the currently running coroutines. 
 
 If you're using the system heavily you may run out of vertical space to display all of the coroutines currently running. You can use the ***gdt.Coroutines.SetFilter*** console command to reduce those shown to those whose root name contains one of the filter strings.
