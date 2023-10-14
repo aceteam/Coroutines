@@ -137,7 +137,7 @@ Other headers that expose additional features:
 
 If you activate the Gameplay Debugger (***gdt.Toggle*** console command), you'll see there is a Coroutines category that displays the currently running coroutines. 
 
-If you're using the system heavily you may run out of vertical space to display all of the coroutines currently running. You can use the ***gdt.Coroutines.SetFilter*** console command to reduce those shown to those whose root name contains one of the filter strings.
+If you're using the system heavily you may run out of vertical space to display all of the coroutines currently running. You can use the ***gdt.Coroutine.SetFilter*** console command to reduce those shown to those whose root name contains one of the filter strings.
 
 You can use the ```_NamedScope``` block to improve the readability of the information displayed in the debugger.
 
