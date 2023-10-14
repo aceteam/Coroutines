@@ -187,30 +187,24 @@ namespace ACETeam_Coroutines
 		
 		public:
 			TScope(TScopeEndedLambda const& OnScopeEnd) : m_OnScopeEnd(OnScopeEnd){}
-			virtual EStatus OnChildStopped(FCoroutineExecutor*, EStatus Status, FCoroutineNode*) override
-			{
-				return Status;
-			}
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override
 			{
-				m_OnScopeEnd();
+				m_OnScopeEnd(Status);
 				return FCoroutineDecorator::End(Exec, Status);
 			}
 		};
-
-		template <typename TScopeLambda>
-		struct TScopeHelper
+		
+		struct FScopeHelper
 		{
-			TScopeLambda m_ScopeLambda;
+			TSharedRef<FCoroutineDecorator, DefaultSPMode> m_Scope;
 
-			TScopeHelper(TScopeLambda const& ScopeLambda) : m_ScopeLambda(ScopeLambda) {}
+			FScopeHelper(TSharedRef<FCoroutineDecorator, DefaultSPMode> const& Scope) : m_Scope(Scope) {}
 
 			template <typename TChild>
 			FCoroutineNodeRef operator() (TChild&& Body)
 			{
-				auto Scope = MakeShared<TScope<TScopeLambda>, DefaultSPMode>(m_ScopeLambda);
-				AddCoroutineChild(Scope, Body);
-				return Scope;
+				AddCoroutineChild(m_Scope, Body);
+				return m_Scope;
 			}
 		};
 
@@ -526,7 +520,7 @@ namespace ACETeam_Coroutines
 			{
 				typedef T TLambda;
 				static_assert(TIsArithmetic<typename ::TFunctorTraits<TLambda>::RetType>::Value, "Return type of lambda must be convertible to float");
-				return MakeShared<Detail::TDynamicTimer<TLambda>, DefaultSPMode>(Arg);
+				return MakeShared<TDynamicTimer<TLambda>, DefaultSPMode>(Arg);
 			}
 		};
 
@@ -535,7 +529,7 @@ namespace ACETeam_Coroutines
 		{
 			static FCoroutineNodeRef Make(float Arg)
 			{
-				return MakeShared<Detail::FTimer, DefaultSPMode>(Arg);
+				return MakeShared<FTimer, DefaultSPMode>(Arg);
 			}
 		};
 	}
@@ -577,15 +571,30 @@ namespace ACETeam_Coroutines
 	}
 
 	//Used to execute some code when the execution scope exits, similar to a destructor
+	//Lambdas used by _Scope must have void return type. They can optionally receive an EStatus argument
+	//that receives the termination status of their contained child.
 	//Usage example:
 	//_Scope([] { UE_LOG(LogTemp, Log, TEXT("Child finished or aborted");})
 	//(
 	//  ... child
 	//)
 	template<typename TOnScopeExit>
-	Detail::TScopeHelper<TOnScopeExit> _Scope(TOnScopeExit const& OnScopeExit)
+	Detail::FScopeHelper _Scope(TOnScopeExit const& OnScopeExit)
 	{
-		return Detail::TScopeHelper<TOnScopeExit>(OnScopeExit);
+		static_assert(std::is_void_v<typename TFunctorTraits<TOnScopeExit>::RetType>,
+			"Scope lambdas must have void return type");
+		if constexpr (TFunctorTraits<TOnScopeExit>::ArgCount > 0)
+		{
+			static_assert(TFunctorTraits<TOnScopeExit>::ArgCount == 1 &&
+				std::is_same_v<typename TFunctorTraits<TOnScopeExit>::template NthArg<0>, EStatus>,
+				"Scope lambdas can only receive one EStatus argument or no arguments");
+			return Detail::FScopeHelper(MakeShared<Detail::TScope<TOnScopeExit>, DefaultSPMode>(OnScopeExit));
+		}
+		else
+		{
+			auto Wrapper = [=](EStatus) { OnScopeExit(); };
+			return Detail::FScopeHelper(MakeShared<Detail::TScope<decltype(Wrapper)>, DefaultSPMode>(Wrapper));
+		}
 	}
 
 	//Forks another execution line. Will not wait for the contained elements. The result of executing the child will not affect the original execution.
