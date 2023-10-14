@@ -4,6 +4,7 @@
 
 #include "CoroutineElements.h"
 #include "CoroutineEvents.h"
+#include "CoroutinesWorldSubsystem.h"
 #include "CoroutinesSubsystem.h"
 #include "CoroutineAsync.h"
 #include "CoroutineGenerator.h"
@@ -184,7 +185,7 @@ void ACoroutineTest::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UCoroutinesSubsystem::Get().StartCoroutine(
+	UCoroutinesWorldSubsystem::Get(this).StartCoroutine(
 		_Seq(
 			_CoroutineTest(GetWorld(), TEXT("test string")),
 			[=] { SemaphoreTest(); }

@@ -1,29 +1,33 @@
 # ACE Team Coroutines Plugin for Unreal Engine
-If you're familiar with Unity's coroutines and ever wanted something similar to use with Unreal Engine from C++, this plugin does exactly that, but with a broader feature set.
 
-Compared to Unity's coroutines, this system makes it much simpler to compose coroutines, so one can wait for another, run in parallel or interrupt another.
+This plugin offers an implementation of C++ coroutines that doesn't depend on co_await and co_return, which are not available or not fully supported on some compilers still used in game development.
 
-If you're unfamiliar with coroutines, they are a way to write code in a way that is similar to a function, but it doesn't have to be executed all at once. It can be suspended at certain points and continue its execution in later frames.
+A notable feature of this plugin compared to the alternatives is the inclusion of a  [visual debugger](#visual-debugger) to assist development and troubleshooting.
 
-The nomenclature and feature set of this plugin was inspired by [**SkookumScript**](https://github.com/EpicSkookumScript/SkookumScript-Plugin) and the use we gave it during development of [**The Eternal Cylinder**](https://www.eternalcylinder.com).
+It's verified to compile and work on:
+- UE Versions:
+  - 4.27
+  - 5.1 - 5.3
+- Platforms:
+  - Win64
+  - PS5
+  - Xbox Series
 
-## Alternatives
-Be sure to check out other plugins that approach this problem differently. There are a couple of cool ones that make use of C++ 20 coroutine support:
-- [SquidTasks](https://github.com/westquote/SquidTasks)
-- [UE5Coro](https://github.com/landelare/ue5coro)
+It is also quite simple to extend with new building blocks.
 
-Keep in mind that plugins that use C++ 20 coroutines don't run out of the box on UE4 on all platforms without source modifications.
-Also at least SquidTasks currently has issues with crashing after using a Live Coding recompile.
-ACE Team Coroutines has neither of these issues.
+## Motivation
 
-ACE Team Coroutines also has the advantage of having a [visual debugger](#visual-debugger) included, so you can see what is currently running.
+The nomenclature and feature set of this plugin was inspired by [**SkookumScript**](https://github.com/EpicSkookumScript/SkookumScript-Plugin) and the use we gave it during development of [**The Eternal Cylinder**](https://www.eternalcylinder.com). In that game we used SkookumScript to create the AI of the very diverse creatures that populated its ecosystem as a collection of modular "behavior tree"-like code.
+
+Since development of SkookumScript was stopped after Agog Labs was acquired by Epic to develop the [**Verse**](https://dev.epicgames.com/documentation/en-us/uefn/verse-language-reference) language, that workflow became very difficult to maintain. So we were forced to find a way to preserve the benefits we saw from that workflow without depending on another language.
+
+This system is currently being used to program the AI and other heavily asynchronous systems in ACE Team's currently unannounced project. 
 
 ## Basic Usage
 As with any other C++ module, you need to add the **"ACETeam_Coroutines"** module to the list of dependencies of your module's .Build.cs file
 
 It's recommended that you include the following headers:
 - *CoroutineElements.h* to have access to the building blocks for your coroutines.
-- *CoroutinesSubsystem.h* for a simple way to run your coroutine. The UCoroutinesSubsystem can execute coroutines in any circumstance. Even in the editor while it's not in play mode.
 - *CoroutinesWorldSubsystem.h* to run your coroutine in the context of a specific world. Coroutines executed using this subsystem will only update if that world is not paused.
 
 For simplicity you can add a "using namespace" declaration so you don't have to preface coroutine elements with the ACETeam_Coroutines namespace.
@@ -58,7 +62,7 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
             _Loop(
                 //_Weak creates an element that will only evaluate its lambda if the passed in
                 // object is valid on evaluation
-                _Weak(World, [] { DrawDebugPoint(World, FVector::ZeroVector, 10, FColor::White); })
+                _Weak(World, [=] { DrawDebugPoint(World, FVector::ZeroVector, 10, FColor::White); })
             ),
             //_LoopSeq is a shortcut for a _Loop containing a _Seq
             _LoopSeq(
@@ -89,7 +93,7 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
 
 void UTestObject::RunTestCoroutine()
 {
-    UCoroutinesSubsystem::Get().StartCoroutine( _CoroutineTest(GetWorld(), "<test string>") );
+    UCoroutinesWorldSubsystem::Get(this).StartCoroutine( _CoroutineTest(GetWorld(), "<test string>") );
 }
 ```
 
@@ -126,6 +130,7 @@ None of the lambdas should receive arguments. You can omit the () except in the 
 
 ## Included extensions
 Other headers that expose additional features:
+- *CoroutinesSubsystem.h* for a simple way to run your coroutine. The UCoroutinesSubsystem can execute coroutines in any circumstance. Even in the editor while it's not in play mode.
 - *CoroutineEvents.h* grants access to ```MakeEvent<...>``` and ```_WaitFor``` which will allow you to make events that optionally broadcast values, and have your coroutines wait for them and receive those values. This is useful for communicating between different coroutine branches, or to receive input from other systems. Events with no parameters can even be exposed to Blueprints, with the wrapper in *CoroutineEventBPWrapper.h*
 - *CoroutineAsync.h* grants access to ```_Async``` to run code blocks on other threads.
 - *CoroutineTween.h* to tween values as part of a coroutine. Supports typical easing functions out of the box, as well as custom easing functions.
@@ -154,5 +159,14 @@ The colors of the strips shown in the debugger represent their state.
 - 🟦 Blue means it's being polled continuously every frame
 
 ## Future work planned
-- Support for requesting async loads of objects / classes while suspending execution.
+- Simple utility blocks to wrap async loading of assets
 - Further improvements to debugger usability
+
+## Alternatives
+Be sure to check out other plugins that approach this problem differently. There are a couple of cool ones that make use of C++ 20 coroutine support:
+- [SquidTasks](https://github.com/westquote/SquidTasks)
+- [UE5Coro](https://github.com/landelare/ue5coro)
+
+Keep in mind that plugins that use C++ 20 coroutines don't run out of the box on UE4 on all platforms without source modifications.
+Also at least SquidTasks currently has issues with crashing after using a Live Coding recompile.
+ACE Team Coroutines has neither of these issues.
