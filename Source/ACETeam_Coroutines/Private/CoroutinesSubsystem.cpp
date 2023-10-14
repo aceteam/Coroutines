@@ -22,7 +22,7 @@ void UCoroutinesSubsystem::StartCoroutine(ACETeam_Coroutines::FCoroutineNodeRef 
 #else
 		TickerHandle = FTicker::GetCoreTicker()
 #endif
-		.AddTicker(FTickerDelegate::CreateWeakLambda(this, [=](float DeltaSeconds)
+		.AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float DeltaSeconds)
 		{
 			Executor.Step(DeltaSeconds);
 			if (Executor.HasRemainingWork())

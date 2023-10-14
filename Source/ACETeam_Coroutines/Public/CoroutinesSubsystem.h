@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "CoroutineExecutor.h"
 #include "CoroutineNode.h"
-#include "Launch/Resources/Version.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "CoroutinesSubsystem.generated.h"
 
 /**

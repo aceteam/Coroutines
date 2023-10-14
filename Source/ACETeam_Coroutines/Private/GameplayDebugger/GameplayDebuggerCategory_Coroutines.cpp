@@ -9,6 +9,8 @@
 #include "Engine/Canvas.h"
 #include "Fonts/FontMeasure.h"
 
+#include "Runtime/Launch/Resources/Version.h"
+
 using namespace ACETeam_Coroutines;
 
 FGameplayDebuggerCategory_Coroutines::FGameplayDebuggerCategory_Coroutines()
@@ -53,16 +55,16 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	};
 	const double CurrentTime = FApp::GetCurrentTime();
 	const double StartTime = CurrentTime - GraphTimeWindow;
-	const float GraphWidth = 450.0f;
-	const float GraphMargin = 150.0f;
-	const float RowHeight = 14.0f;
-	const float SpaceBetweenRows = 1.0f;
-	const float InitialY = 200.0;
-	const float X = Canvas->SizeX - GraphWidth - GraphMargin;
-	float Y = InitialY;
+	const double GraphWidth = 450.0;
+	const double GraphMargin = 150.0;
+	const double RowHeight = 14.0;
+	const double SpaceBetweenRows = 1.0;
+	const double InitialY = 200.0;
+	const double X = Canvas->SizeX - GraphWidth - GraphMargin;
+	double Y = InitialY;
 	
-	const float OneOverGraphTimeWindow = 1.0f / GraphTimeWindow;
-	const float TimeToPixels = OneOverGraphTimeWindow*GraphWidth;
+	const double OneOverGraphTimeWindow = 1.0 / GraphTimeWindow;
+	const double TimeToPixels = OneOverGraphTimeWindow*GraphWidth;
 
 	auto ColorForStatus = [] (EStatus Status)
 	{
@@ -87,7 +89,15 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	const TSharedRef< FSlateFontMeasure > FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	auto FontInfo = GEngine->GetTinyFont()->GetLegacySlateFontInfo();
 
-	FCanvasTileItem BackgroundTile(FVector2d{X-5, Y-5}, FVector2D(GraphWidth + 10, FMath::Max(LastHeight-InitialY+10, RowHeight*10)), FLinearColor::Black.CopyWithNewOpacity(0.3f));
+#if ENGINE_MAJOR_VERSION < 5
+	auto Flt = [](double Val){
+		return static_cast<float>(Val);
+	};
+#else
+	auto Flt = [](double Val) { return Val; };
+#endif
+
+	FCanvasTileItem BackgroundTile(FVector2D{ Flt(X-5.0), Flt(Y-5.0)}, FVector2D(Flt(GraphWidth + 10.0), Flt(FMath::Max(LastHeight-InitialY+10, RowHeight*10))), FLinearColor::Black.CopyWithNewOpacity(0.3f));
 	BackgroundTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 	BackgroundTile.Draw(FCanvas);
 

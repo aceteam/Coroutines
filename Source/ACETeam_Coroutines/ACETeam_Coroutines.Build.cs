@@ -49,7 +49,8 @@ public class ACETeam_Coroutines : ModuleRules
 			);
 
 		bUseUnity = false;
-		
+
+#if UE_5_2_OR_LATER
 		SetupGameplayDebuggerSupport(Target);
 		if (Target.bUseGameplayDebugger)
 		{
@@ -62,5 +63,25 @@ public class ACETeam_Coroutines : ModuleRules
 				}
 			);
 		}
-    }
+#else
+		if (Target.bBuildDeveloperTools || (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test))
+		{
+			PrivateDependencyModuleNames.Add("GameplayDebugger");
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"GameplayDebugger",
+					"Slate",
+					"SlateCore",
+					"InputCore",
+				}
+			);
+			PublicDefinitions.Add("WITH_GAMEPLAY_DEBUGGER=1");
+		}
+		else
+		{
+			PublicDefinitions.Add("WITH_GAMEPLAY_DEBUGGER=0");
+		}
+#endif
+	}
 }

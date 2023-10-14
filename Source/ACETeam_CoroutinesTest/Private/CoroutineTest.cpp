@@ -18,7 +18,6 @@ ACoroutineTest::ACoroutineTest()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-UE_DISABLE_OPTIMIZATION
 using namespace ACETeam_Coroutines;
 
 FCoroutineNodeRef _CoroutineEventsTest();
