@@ -255,9 +255,11 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 	{
 		int IndexToInsert = DebuggerInfo.Num();
 		FCoroutineNode* Scope = nullptr;
+		int Depth = 0;
 		if (Parent)
 		{
 			FDebuggerRow* RowForParent = DebuggerInfo.FindByKey(Parent);
+			Depth = RowForParent->Depth + 1;
 			check(RowForParent);
 			RowForParent->bIsLeaf = false;
 			const int IndexForParent = RowForParent - DebuggerInfo.GetData();
@@ -278,13 +280,13 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node
 		}
 		RowForNode = &DebuggerInfo.Insert_GetRef(
 			FDebuggerRow{
-				Node, Parent, Scope, Node->Debug_IsDeferredNodeGenerator(), Parent == nullptr || Node->Debug_IsDebuggerScope() 
+				Node, Parent, Scope, Depth, Node->Debug_IsDeferredNodeGenerator(), Parent == nullptr || Node->Debug_IsDebuggerScope(), true
 			}, IndexToInsert);
 	}
 RowAssigned:
 	if (RowForNode->Entries.Num() > 0)
 	{
-	    double CurrentTime = FApp::GetCurrentTime();
+		double CurrentTime = FApp::GetCurrentTime();
 		FDebuggerEntry& LastEntry = RowForNode->Entries.Last();
 		//coalesce very short entries, if they happened recently
 		if ((LastEntry.EndTime - LastEntry.StartTime) < 0.03 && (CurrentTime - LastEntry.EndTime) < 0.03)

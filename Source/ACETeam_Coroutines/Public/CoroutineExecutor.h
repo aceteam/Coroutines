@@ -112,8 +112,12 @@ namespace ACETeam_Coroutines
 		static bool IsFinished(EStatus Status) { return (Status & Finished) != 0; }
 
 #if WITH_GAMEPLAY_DEBUGGER
-		friend class FGameplayDebuggerCategory_Coroutines;
+#if PLATFORM_COMPILER_CLANG
+	public:
+#else
 	private:
+		friend class FGameplayDebuggerCategory_Coroutines;
+#endif
 		struct FDebuggerEntry
 		{
 			FString Name;
@@ -126,9 +130,10 @@ namespace ACETeam_Coroutines
 			FCoroutineNode* Node;
 			FCoroutineNode* Parent;
 			FCoroutineNode* Scope;
-			bool bIsDeferredNodeGenerator;
-			bool bIsScope;
-			bool bIsLeaf = true;
+			int Depth = 0;
+			bool bIsDeferredNodeGenerator:1;
+			bool bIsScope:1;
+			bool bIsLeaf:1;
 			TArray<FDebuggerEntry> Entries;
 			bool operator==(const FCoroutineNode* InNode) const { return Node == InNode; }
 		};

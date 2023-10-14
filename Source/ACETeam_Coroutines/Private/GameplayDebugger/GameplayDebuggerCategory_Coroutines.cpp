@@ -18,8 +18,21 @@ FGameplayDebuggerCategory_Coroutines::FGameplayDebuggerCategory_Coroutines()
 	BindKeyPress(EKeys::RightBracket.GetFName(), FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Coroutines::ToggleCompactMode, EGameplayDebuggerInputMode::Local);
 }
 
-static FString GCoroutineDebuggerFilter;
-static FAutoConsoleVariableRef CVarCoroutineDebuggerFilter(TEXT("coroutine.DebuggerFilter"), GCoroutineDebuggerFilter, TEXT("Only show coroutines whose root scope contain this string in their name"), ECVF_Default);
+static TArray<FString> GCoroutineDebuggerFilter;
+
+struct FGameplayDebuggerCategory_CoroutinesCommands
+{
+	static void SetFilter(const TArray< FString >& Args, UWorld* World)
+	{
+		GCoroutineDebuggerFilter = Args;
+	}
+};
+
+static FAutoConsoleCommandWithWorldAndArgs SetFontSizeCmd(
+	TEXT("gdt.Coroutine.SetFilter"),
+	TEXT("Configures zero or more filter strings for the coroutine debugger. Usage: gdt.Coroutine.SetFilter <string1> <string2> ..."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FGameplayDebuggerCategory_CoroutinesCommands::SetFilter));
+
 
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Coroutines::MakeInstance()
 {
@@ -40,9 +53,9 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	};
 	const double CurrentTime = FApp::GetCurrentTime();
 	const double StartTime = CurrentTime - GraphTimeWindow;
-	const float GraphWidth = 500.0f;
-	const float GraphMargin = 50.0f;
-	const float RowHeight = 16.0f;
+	const float GraphWidth = 450.0f;
+	const float GraphMargin = 150.0f;
+	const float RowHeight = 14.0f;
 	const float SpaceBetweenRows = 1.0f;
 	const float InitialY = 200.0;
 	const float X = Canvas->SizeX - GraphWidth - GraphMargin;
@@ -74,47 +87,71 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	const TSharedRef< FSlateFontMeasure > FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	auto FontInfo = GEngine->GetTinyFont()->GetLegacySlateFontInfo();
 
-	FCanvasTileItem BackgroundTile(FVector2d{X-GraphMargin*0.1, Y}, FVector2D(GraphWidth + GraphMargin*0.2, FMath::Max(LastHeight, RowHeight*30)), FLinearColor::Black.CopyWithNewOpacity(0.3f));
+	FCanvasTileItem BackgroundTile(FVector2d{X-5, Y-5}, FVector2D(GraphWidth + 10, FMath::Max(LastHeight-InitialY+10, RowHeight*10)), FLinearColor::Black.CopyWithNewOpacity(0.3f));
 	BackgroundTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 	BackgroundTile.Draw(FCanvas);
 
-	struct FScopeHeight
+	struct FScopeInfo
 	{
 		FCoroutineNode* Scope;
 		double Y;
+		double Indent;
+		bool operator==(FCoroutineNode* InScope) const { return Scope == InScope; }
 	};
-	TArray<FScopeHeight> ScopeHeights;
+	TArray<FScopeInfo> ScopeInfo;
 	auto HeightForScope = [&](FCoroutineNode* Scope)
 	{
-		for (int i = ScopeHeights.Num()-1; i >= 0; --i)
-		{
-			if (ScopeHeights[i].Scope == Scope)
-				return ScopeHeights[i].Y;
-		}
+		auto ScopeInfoPtr = ScopeInfo.FindByKey(Scope);
 		/**
 		 * There's some bug here related to deferred nodes that triggers this ensure
 		 * I don't have time to fix it yet, so the ensure is disabled
 		 */
 		//ensure(false);
-		return 0.0;
+		return ScopeInfoPtr ? ScopeInfoPtr->Y : 0.0;
+	};
+	auto IndentForScope = [&](FCoroutineNode* Scope)
+	{
+		auto ScopeInfoPtr = ScopeInfo.FindByKey(Scope);
+		return ScopeInfoPtr ? ScopeInfoPtr->Indent : 0.0;
+	};
+	auto IndentForRow = [&](FCoroutineExecutor::FDebuggerRow const& Row)
+	{
+		if (bCompactMode)
+		{
+			if (Row.Scope)
+			{
+				return IndentForScope(Row.Scope) + 2.0;
+			}
+			return 0.0;
+		}
+		return 2.0 * Row.Depth;
 	};
 	for (const auto Exec : ExecutorsToDebug)
 	{
 		if (Exec->DebuggerInfo.Num() == 0)
 			continue;
-		ScopeHeights.Reset();
-		ScopeHeights.Add( FScopeHeight{Exec->DebuggerInfo[0].Node, Y + RowHeight*0.6} );
+		ScopeInfo.Reset();
+		ScopeInfo.Add( FScopeInfo{Exec->DebuggerInfo[0].Node, Y + RowHeight*0.6, 0.0} );
 		for (auto RowIt = Exec->DebuggerInfo.CreateConstIterator(); RowIt; ++RowIt)
 		{
-			if (!GCoroutineDebuggerFilter.IsEmpty())
+			if (GCoroutineDebuggerFilter.Num() > 0)
 			{
 				auto IsRootScope = [](auto RowIt)
 				{
 					return RowIt->bIsScope && RowIt->Parent == nullptr;
 				};
+				auto StringPassesFilter = [&] (FString String)
+				{
+					for (auto& Filter : GCoroutineDebuggerFilter)
+					{
+						if (String.Contains(Filter))
+							return true;
+					}
+					return false;
+				};
 				if (IsRootScope(RowIt))
 				{
-					while (RowIt && ensure(RowIt->Entries.Num() > 0) && !RowIt->Entries.Last().Name.Contains(GCoroutineDebuggerFilter))
+					while (RowIt && ensure(RowIt->Entries.Num() > 0) && !StringPassesFilter(RowIt->Entries.Last().Name))
 					{
 						do
 						{
@@ -142,11 +179,12 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 			const int FirstEntryIndex = FirstEntryToRender - Row.Entries.GetData();
 			int DrawnEntries = 0;
 			double FirstEntryX = 0.0;
+			double Indent = IndentForRow(Row);
 			for (int Index = FirstEntryIndex; Index < Row.Entries.Num(); ++Index)
 			{
 				const auto& Entry = Row.Entries[Index];
 				const double CappedStartTime = FMath::Max(StartTime, Entry.StartTime);
-				FVector2D EntryStartPos(X + (CappedStartTime - StartTime) * TimeToPixels, Y);
+				FVector2D EntryStartPos(X + Indent + (CappedStartTime - StartTime) * TimeToPixels, Y);
 				const double CurrentEndTime = Entry.EndTime < 0.0 ? CurrentTime : Entry.EndTime;
 				const double EntryDuration = CurrentEndTime - CappedStartTime;
 				if (DrawnEntries == 0)
@@ -154,7 +192,7 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 					FirstEntryX = EntryStartPos.X;
 				}
 				++DrawnEntries;
-				const double EntryWidth = FMath::Max(1.0, EntryDuration * TimeToPixels);
+				const double EntryWidth = FMath::Clamp(EntryDuration * TimeToPixels, 1.0, X + GraphWidth-EntryStartPos.X);
 				FCanvasTileItem EntryTile(EntryStartPos, FVector2D(EntryWidth, RowHeight), ColorForStatus(Entry.Status));
 				EntryTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 				EntryTile.Draw(FCanvas);
@@ -176,14 +214,14 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 				double MyScopeY = HeightForScope(Row.Scope);
 				if (MyScopeY > 0.0) //TEMP: so we don't draw black lines across the graph when bug is triggered
 				{
-					FCanvasTileItem EntryTile(FVector2D(FirstEntryX, MyScopeY), FVector2D(2.0, Y - MyScopeY + RowHeight*0.4), FLinearColor::Black.CopyWithNewOpacity(0.5f));
+					FCanvasTileItem EntryTile(FVector2D(FirstEntryX-2.0, MyScopeY), FVector2D(2.0, Y - MyScopeY + RowHeight*0.4), FLinearColor(0.25f, 0.25f, 0.25f, 0.5f));
 					EntryTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 					EntryTile.Draw(FCanvas);
 				}
 			}
 			if (Row.bIsScope)
 			{
-				ScopeHeights.Add(FScopeHeight { Row.Node, Y + RowHeight*0.8 });
+				ScopeInfo.Add(FScopeInfo { Row.Node, Y + RowHeight*0.8, Indent });
 			}
 			Y += RowHeight+SpaceBetweenRows;
 		}
