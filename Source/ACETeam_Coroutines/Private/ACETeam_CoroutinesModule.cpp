@@ -17,7 +17,7 @@ void FACETeam_CoroutinesModule::StartupModule()
 	//If the gameplay debugger is available, register the category and notify the editor about the changes
 	IGameplayDebugger& GameplayDebuggerModule = IGameplayDebugger::Get();
 
-	GameplayDebuggerModule.RegisterCategory("Coroutines", IGameplayDebugger::FOnGetCategory::CreateStatic(&FGameplayDebuggerCategory_Coroutines::MakeInstance), EGameplayDebuggerCategoryState::EnabledInGame);
+	GameplayDebuggerModule.RegisterCategory("Coroutines", IGameplayDebugger::FOnGetCategory::CreateStatic(&FGameplayDebuggerCategory_Coroutines::MakeInstance));
 
 	GameplayDebuggerModule.NotifyCategoriesChanged();
 #endif

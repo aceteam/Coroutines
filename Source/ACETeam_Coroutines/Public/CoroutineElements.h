@@ -159,6 +159,39 @@ namespace ACETeam_Coroutines
 			virtual int GetNumChildren() { return m_Child ? 1 : 0; }
 		};
 
+		class ACETEAM_COROUTINES_API FNot : public FCoroutineDecorator
+		{
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+
+		class ACETEAM_COROUTINES_API FCaptureReturn : public FCoroutineDecorator
+		{
+			TSharedRef<bool> Variable;
+		public:
+			FCaptureReturn(TSharedRef<bool> const& InVariable);
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+
+		struct FCaptureReturnHelper
+		{
+			TSharedRef<bool> Variable;
+
+			FCaptureReturnHelper(TSharedRef<bool> const& InVariable) : Variable(InVariable) {}
+
+			template<typename TChild>
+			FCoroutineNodeRef operator() (TChild&& Body)
+			{
+				auto CaptureReturn = MakeShared<FCaptureReturn, DefaultSPMode>(Variable);
+				AddCoroutineChild(CaptureReturn, Body);
+				return CaptureReturn;
+			}
+		};
+		
+		class ACETEAM_COROUTINES_API FCatch : public FCoroutineDecorator
+		{
+			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
+		};
+
 		// Launch a task to run independent of its launching context
 		class ACETEAM_COROUTINES_API FFork : public FCoroutineDecorator
 		{
@@ -483,14 +516,21 @@ namespace ACETeam_Coroutines
 		return Detail::MakeComposite<Detail::FSequence>(Children...);
 	}
 
-	//Runs its arguments in sequence until one returns false, catches failures
+	//Runs its arguments in sequence until one returns false, catches failures (i.e. never fails)
 	template<typename ...TChildren>
 	FCoroutineCompositeRef _OptionalSeq(TChildren... Children)
 	{
 		return Detail::MakeComposite<Detail::FOptionalSequence>(Children...);
 	}
 
-	//Runs its arguments in sequence until one finishes successfully, propagates failure if last arg fails
+	//Alias for _OptionalSeq
+	template<typename ...TChildren>
+	FCoroutineCompositeRef _SeqNoFail(TChildren... Children)
+	{
+		return _OptionalSeq(Children...);
+	}
+
+	//Runs its arguments in sequence, moving on when one fails, until one finishes successfully, propagates failure if last child fails
 	template<typename ...TChildren>
 	FCoroutineCompositeRef _Select(TChildren... Children)
 	{
@@ -597,6 +637,27 @@ namespace ACETeam_Coroutines
 		}
 	}
 
+	//Negates the success or failure of its child.
+	template<typename TChild>
+	FCoroutineNodeRef _Not(TChild Body)
+	{
+		auto Not = MakeShared<Detail::FNot, DefaultSPMode>();
+		Detail::AddCoroutineChild(Not, Body);
+		return Not;
+	}
+
+	//Captures the return value of its child into a shared bool variable, prevents failure from propagating upward
+	Detail::FCaptureReturnHelper ACETEAM_COROUTINES_API _CaptureReturn(TSharedRef<bool> const& Var);
+
+	//Catches any failure and prevents it from propagating upward. Similar to _CaptureReturn, but ignores the return value
+	template<typename TChild>
+	FCoroutineNodeRef _Catch(TChild Body)
+	{
+		auto Catch = MakeShared<Detail::FCatch, DefaultSPMode>();
+		Detail::AddCoroutineChild(Catch, Body);
+		return Catch;
+	}
+
 	//Forks another execution line. Will not wait for the contained elements. The result of executing the child will not affect the original execution.
 	template<typename TChild>
 	FCoroutineNodeRef _Fork(TChild Body)
@@ -610,7 +671,7 @@ namespace ACETeam_Coroutines
 	 * Used as a way to give a name to a coroutine that will show up in the debugger, so it won't just be an anonymous block running
 	 */
 	Detail::FNamedScopeHelper ACETEAM_COROUTINES_API _NamedScope(FString const& RootName);
-
+	
 	namespace Detail
 	{
 		template <typename TLambda, typename TLambdaRetType = void, typename Enable=void>

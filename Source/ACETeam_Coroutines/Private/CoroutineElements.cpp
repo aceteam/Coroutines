@@ -79,6 +79,8 @@ namespace Detail
 
 	EStatus FParallelBase::Start( FCoroutineExecutor* Exec )
 	{
+		if (m_Children.Num() == 0)
+			return Completed;
 		for (int i = m_Children.Num()-1; i >= 0; --i)
 		{
 			Exec->EnqueueCoroutineNode(m_Children[i], this);
@@ -150,6 +152,27 @@ namespace Detail
 		m_Child = Child; 
 	}
 
+	EStatus FNot::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	{
+		return Status == Completed ? Failed : Completed;
+	}
+
+	FCaptureReturn::FCaptureReturn(TSharedRef<bool> const& InVariable)
+		:Variable(InVariable)
+	{
+	}
+
+	EStatus FCaptureReturn::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	{
+		*Variable = Status == Completed;
+		return Completed;
+	}
+	
+	EStatus FCatch::OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child)
+	{
+		return Completed;
+	}
+
 	EStatus FFork::Start( FCoroutineExecutor* Exec )
 	{
 		Exec->EnqueueCoroutine(m_Child.ToSharedRef());
@@ -211,6 +234,11 @@ FCoroutineNodeRef _Nop()
 FCoroutineNodeRef _WaitForever()
 {
 	return MakeShared<Detail::FWaitForeverNode, DefaultSPMode>();
+}
+
+Detail::FCaptureReturnHelper _CaptureReturn(TSharedRef<bool> const& Var)
+{
+	return Detail::FCaptureReturnHelper(Var);
 }
 
 Detail::FNamedScopeHelper _NamedScope(FString const& RootName)
