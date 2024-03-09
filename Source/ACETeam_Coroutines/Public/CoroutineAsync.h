@@ -61,7 +61,7 @@ namespace ACETeam_Coroutines
 			{
 				CachedExec = nullptr;
 			}
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Async"); }
 #endif
 		private:

@@ -21,7 +21,7 @@ namespace ACETeam_Coroutines
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus Update(FCoroutineExecutor* Exec, float dt) override;
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override;
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("SoundLoop"); }
 #endif
 		};

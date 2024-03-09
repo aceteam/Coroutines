@@ -1,6 +1,6 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 
 #include "GameplayDebuggerCategory_Coroutines.h"
 
@@ -244,4 +244,4 @@ void FGameplayDebuggerCategory_Coroutines::ToggleCompactMode()
 	bCompactMode = !bCompactMode;
 }
 
-#endif // WITH_GAMEPLAY_DEBUGGER
+#endif // WITH_ACETEAM_COROUTINE_DEBUGGER

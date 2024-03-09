@@ -83,5 +83,6 @@ public class ACETeam_Coroutines : ModuleRules
 			PublicDefinitions.Add("WITH_GAMEPLAY_DEBUGGER=0");
 		}
 #endif
+		PublicDefinitions.Add("WITH_ACETEAM_COROUTINE_DEBUGGER=WITH_GAMEPLAY_DEBUGGER");
 	}
 }

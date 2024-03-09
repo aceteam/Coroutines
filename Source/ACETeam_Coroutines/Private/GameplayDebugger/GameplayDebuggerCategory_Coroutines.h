@@ -2,7 +2,7 @@
 
 #pragma once
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 
 #include "GameplayDebuggerCategory.h"
 
@@ -26,4 +26,4 @@ public:
 	bool bCompactMode = true;
 };
 
-#endif // WITH_GAMEPLAY_DEBUGGER
+#endif // WITH_ACETEAM_COROUTINE_DEBUGGER

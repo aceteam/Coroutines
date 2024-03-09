@@ -31,7 +31,7 @@ public:
 private:
 	ACETeam_Coroutines::FCoroutineExecutor Executor;
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 	friend class FGameplayDebuggerCategory_Coroutines;
 #endif
 };

@@ -111,7 +111,7 @@ namespace ACETeam_Coroutines
 
 		static bool IsFinished(EStatus Status) { return (Status & Finished) != 0; }
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 #if PLATFORM_COMPILER_CLANG
 	public:
 #else

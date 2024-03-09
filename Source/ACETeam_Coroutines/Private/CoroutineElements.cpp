@@ -157,7 +157,7 @@ namespace Detail
 		return Status == Completed ? Failed : Completed;
 	}
 
-	FCaptureReturn::FCaptureReturn(TSharedRef<bool> const& InVariable)
+	FCaptureReturn::FCaptureReturn(TCoroVar<bool> const& InVariable)
 		:Variable(InVariable)
 	{
 	}
@@ -236,7 +236,7 @@ FCoroutineNodeRef _WaitForever()
 	return MakeShared<Detail::FWaitForeverNode, DefaultSPMode>();
 }
 
-Detail::FCaptureReturnHelper _CaptureReturn(TSharedRef<bool> const& Var)
+Detail::FCaptureReturnHelper _CaptureReturn(TCoroVar<bool> const& Var)
 {
 	return Detail::FCaptureReturnHelper(Var);
 }

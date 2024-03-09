@@ -18,8 +18,13 @@ namespace ACETeam_Coroutines
 			void AddListener(FEventListenerRef const& Listener);
 			void RemoveListener(FEventListenerRef const& Listener);
 			void AbortListeners();
+			bool IsBound() const { return Listeners.Num() > 0; }
 		protected:
 			TArray<FEventListenerRef, TInlineAllocator<1>> Listeners;
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+		public:
+			mutable FString DebugName;
+#endif
 		};
 		
 		class ACETEAM_COROUTINES_API FEventListenerBase : public FCoroutineNode, public TSharedFromThis<FEventListenerBase, DefaultSPMode>
@@ -37,8 +42,13 @@ namespace ACETeam_Coroutines
 			FCoroutineExecutor* CachedExec = nullptr;
 			TSharedRef<FEventBase, DefaultSPMode> Event;
 
-#if WITH_GAMEPLAY_DEBUGGER
-			virtual FString Debug_GetName() const override { return TEXT("Wait for event"); }
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+			virtual FString Debug_GetName() const override
+			{
+				if (Event->DebugName.IsEmpty())
+					return TEXT("Wait for event");
+				return FString::Printf(TEXT("Awaiting (%s)"), *Event->DebugName);
+			}
 #endif
 		};
 
@@ -170,7 +180,7 @@ namespace ACETeam_Coroutines
 				:TEventListenerBase<TValues...>(_Event)
 				,Lambda(_Lambda)
 			{}
-			//for bool return values we use it to determine whether this listener simply completes or propagates a failure
+			//for lambdas that return another node, we enqueue it as our child and suspend until it finishes, then propagte its end status
 			virtual EStatus HandleValues(TValues const&... Values) override
 			{
 				if (this->CachedExec)
@@ -263,9 +273,9 @@ namespace ACETeam_Coroutines
 	template <typename TLambda, typename ...TValues>
 	FCoroutineNodeRef _WaitFor(TEventRef<TValues...> const& Event, TLambda const& Lambda)
 	{
-		typedef typename ::TFunctionTraits<decltype(&TLambda::operator())>::RetType LambdaRetType;
-		static_assert(TFunctionTraits<decltype(&TLambda::operator())>::ArgCount == 0
-			|| std::is_same_v<TTuple<TValues...>, typename TFunctionTraits<decltype(&TLambda::operator())>::ArgTypes>,
+		typedef typename ::TFunctorTraits<TLambda>::RetType LambdaRetType;
+		static_assert(TFunctorTraits<TLambda>::ArgCount == 0
+			|| std::is_same_v<TTuple<TValues...>, typename TFunctorTraits<TLambda>::ArgTypes>,
 			"Lambdas in _WaitFor must match argument types exactly. They can't use implicit conversions");
 		static_assert(std::is_void_v<LambdaRetType>
 			|| std::is_same_v<bool, LambdaRetType>

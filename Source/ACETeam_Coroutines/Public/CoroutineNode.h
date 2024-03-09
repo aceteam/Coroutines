@@ -11,10 +11,19 @@ enum EStatus
 	Suspended = 1<<4,
 	Aborted = 1<<5,
 };
+	
+ACETEAM_COROUTINES_API const TCHAR* ToString(EStatus Status);
+	
 class FCoroutineNode;
 constexpr ESPMode DefaultSPMode = ESPMode::NotThreadSafe;
 typedef TSharedPtr<FCoroutineNode, DefaultSPMode> FCoroutineNodePtr;
 typedef TSharedRef<FCoroutineNode, DefaultSPMode> FCoroutineNodeRef;
+
+template<typename T>
+constexpr bool TIsCoroutineNodeRef_V = false;
+
+template<typename TSharedRefArg>
+constexpr bool TIsCoroutineNodeRef_V<TSharedRef<TSharedRefArg, DefaultSPMode>> = TIsDerivedFrom<TSharedRefArg, FCoroutineNode>::Value;
 
 class FCoroutineExecutor;
 
@@ -24,10 +33,10 @@ public:
 	virtual ~FCoroutineNode(){}
 	virtual EStatus Start(FCoroutineExecutor* Exec) { return Running; }
 	virtual EStatus Update(FCoroutineExecutor* Exec, float dt) { return Running; }
-	virtual void End(FCoroutineExecutor* Exec, EStatus Status) {};
+	virtual void End(FCoroutineExecutor* Exec, EStatus Status) {}
 	virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) { return Running; }
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 private:
 	friend class FGameplayDebuggerCategory_Coroutines;
 	friend class FCoroutineExecutor;
@@ -36,5 +45,40 @@ private:
 	virtual bool Debug_IsDebuggerScope() const { return false; }
 #endif
 };
-	
+
+//Coroutine variables (shared)
+template <typename T>
+class TCoroVar : public TSharedRef<T>
+{
+};
+
+//Creates a coroutine variable that can be referenced across coroutine blocks. Checks that the type is not a raw UObject pointer or TObjectPtr as that is not safe unless you are sure what you're doing
+template <typename T, typename... InArgTypes>
+TCoroVar<T> CoroVar(InArgTypes&&... Args)
+{
+	static_assert(!TIsPointerOrObjectPtrToBaseOf<T, UObject>::Value, "Coroutine variables should not be of type UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+	if constexpr(TIsTArray_V<T> || TIsTSet<T>::Value)
+	{
+		typedef typename T::ElementType U;
+		static_assert(!TIsPointerOrObjectPtrToBaseOf<U, UObject>::Value, "Coroutine variables should not contain types UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+	}
+	if constexpr(TIsTMap<T>::Value)
+	{
+		typedef typename T::KeyType K;
+		typedef typename T::ValueType V;
+		static_assert(!TIsPointerOrObjectPtrToBaseOf<K, UObject>::Value && !TIsPointerOrObjectPtrToBaseOf<V, UObject>::Value, "Coroutine variables should not contain types UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+	}
+	auto Return = ::MakeShared<T>(::Forward<InArgTypes>(Args)...);
+	return static_cast<TCoroVar<T>&>(Return);
+}
+
+//Same as CoroVar but does not check for UObject direct pointer types, use at your own risk
+//Can safely be used if you only need the value for equality comparisons with another, safe UObject pointer.
+template <typename T, typename... InArgTypes>
+TCoroVar<T> CoroVarUnsafe(InArgTypes&&... Args)
+{
+	auto Return = ::MakeShared<T>(::Forward<InArgTypes>(Args)...);
+	return static_cast<TCoroVar<T>&>(Return);
+}
+
 }

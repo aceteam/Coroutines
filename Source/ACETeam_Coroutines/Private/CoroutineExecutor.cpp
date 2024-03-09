@@ -2,6 +2,21 @@
 #include "CoroutineExecutor.h"
 #include "Algo/Find.h"
 
+const TCHAR* ACETeam_Coroutines::ToString(EStatus Status)
+{
+	switch (Status)
+	{
+	case Completed: return TEXT("Completed");
+	case Failed: return TEXT("Failed");
+	case Running: return TEXT("Running");
+	case Suspended: return TEXT("Suspended");
+	case Aborted: return TEXT("Aborted");	
+	}
+	check(false);
+	return TEXT("<INVALID>");
+}
+
+
 bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 {
 	FNodeExecInfo Info = MoveTemp(m_ActiveNodes.Last());
@@ -161,7 +176,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::Cleanup()
 	auto Pred = [](FNodeExecInfo const& Info) { return Info.Status == Aborted; };
 	m_SuspendedNodes.RemoveAllSwap(Pred);
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 	const double DropTime = FApp::GetCurrentTime() - 60.0f;
 	for (auto RowIt = DebuggerInfo.CreateIterator(); RowIt; ++RowIt)
 	{
@@ -249,7 +264,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::ForceNodeEnd( FCoroutineNode* Node,
 
 void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node, FCoroutineNode* Parent, EStatus Status)
 {
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
 	if (!RowForNode)
 	{
@@ -303,17 +318,21 @@ RowAssigned:
 
 void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeSuspendFromUpdate(FCoroutineNode* Node)
 {
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
-	check(RowForNode);
-	check(RowForNode->Entries.Num() > 0);
-	RowForNode->Entries.Last().Status = Suspended;
+	if (ensure(RowForNode))
+	{
+		if (ensure(RowForNode->Entries.Num() > 0))
+		{
+			RowForNode->Entries.Last().Status = Suspended;
+		}
+	}
 #endif
 }
 
 void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeEnd(FCoroutineNode* Node, EStatus Status)
 {
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
 	if (RowForNode)
 	{

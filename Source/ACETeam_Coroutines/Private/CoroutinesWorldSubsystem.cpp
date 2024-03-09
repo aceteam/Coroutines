@@ -27,6 +27,8 @@ void UCoroutinesWorldSubsystem::AbortCoroutine(ACETeam_Coroutines::FCoroutineNod
 void UCoroutinesWorldSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(UCoroutinesWorldSubsystem::ExecutorStep);
 	
 	if (Executor.HasRemainingWork())
 	{

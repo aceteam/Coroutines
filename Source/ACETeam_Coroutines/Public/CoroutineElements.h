@@ -90,7 +90,7 @@ namespace ACETeam_Coroutines
 				}
 				m_Child.Reset(); //Child has finished its execution, so it can be released
 			};
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual bool Debug_IsDeferredNodeGenerator() const override { return true; }
 #endif
 		};
@@ -128,7 +128,7 @@ namespace ACETeam_Coroutines
 		class ACETEAM_COROUTINES_API FWaitForeverNode : public FCoroutineNode
 		{
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Wait forever"); }
 #endif
 		};
@@ -166,17 +166,17 @@ namespace ACETeam_Coroutines
 
 		class ACETEAM_COROUTINES_API FCaptureReturn : public FCoroutineDecorator
 		{
-			TSharedRef<bool> Variable;
+			TCoroVar<bool> Variable;
 		public:
-			FCaptureReturn(TSharedRef<bool> const& InVariable);
+			FCaptureReturn(TCoroVar<bool> const& InVariable);
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 		};
 
 		struct FCaptureReturnHelper
 		{
-			TSharedRef<bool> Variable;
+			TCoroVar<bool> Variable;
 
-			FCaptureReturnHelper(TSharedRef<bool> const& InVariable) : Variable(InVariable) {}
+			FCaptureReturnHelper(TCoroVar<bool> const& InVariable) : Variable(InVariable) {}
 
 			template<typename TChild>
 			FCoroutineNodeRef operator() (TChild&& Body)
@@ -208,7 +208,7 @@ namespace ACETeam_Coroutines
 			virtual EStatus Update(FCoroutineExecutor* Exec, float) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode*) override;
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Loop"); }
 #endif
 		};
@@ -244,14 +244,14 @@ namespace ACETeam_Coroutines
 		class ACETEAM_COROUTINES_API FNamedScopeNode : public FCoroutineDecorator
 		{
 		protected:
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			FString Name;
 			virtual FString Debug_GetName() const override { return Name; }
 			virtual bool Debug_IsDebuggerScope() const override { return true; }
 #endif
 		public:
 			FNamedScopeNode(FString&& InName)
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 				:Name(InName)
 #endif
 			{}
@@ -267,9 +267,13 @@ namespace ACETeam_Coroutines
 			template <typename TChild>
 			FCoroutineNodeRef operator[] (TChild&& Body)
 			{
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 				auto NamedRoot = MakeShared<FNamedScopeNode, DefaultSPMode> (MoveTemp(Name));
 				AddCoroutineChild(NamedRoot, Body);
 				return NamedRoot;
+#else
+				return Body;
+#endif
 			}
 		};
 
@@ -296,7 +300,7 @@ namespace ACETeam_Coroutines
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 			
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Seq"); }
 #endif
 		};
@@ -306,7 +310,7 @@ namespace ACETeam_Coroutines
 		public:
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("OptionalSeq"); }
 #endif
 		};
@@ -318,7 +322,7 @@ namespace ACETeam_Coroutines
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Select"); }
 #endif
 		};
@@ -344,7 +348,7 @@ namespace ACETeam_Coroutines
 				return Running;
 			}
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait %.1fs"), m_TargetTime); }
 #endif
 		};
@@ -373,7 +377,7 @@ namespace ACETeam_Coroutines
 				return Running;
 			}
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait %d frames"), m_TargetFrames); }
 #endif
 		};
@@ -383,7 +387,7 @@ namespace ACETeam_Coroutines
 		{
 			F m_Lambda;
 			float m_Timer = 0.0f;
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			float m_DebugLastTimer = 0.0f;
 #endif
 		public:
@@ -392,7 +396,7 @@ namespace ACETeam_Coroutines
 			virtual EStatus Start(FCoroutineExecutor* Exec) override
 			{
 				float CurrentTimer = static_cast<float>(m_Lambda());
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 				m_DebugLastTimer = CurrentTimer;
 #endif
 				m_Timer = CurrentTimer;
@@ -406,7 +410,7 @@ namespace ACETeam_Coroutines
 				return Running;
 			}
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return FString::Printf(TEXT("Wait %.1fs"), m_DebugLastTimer); }
 #endif
 		};
@@ -422,7 +426,7 @@ namespace ACETeam_Coroutines
 		{
 		public:
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Race"); }
 #endif
 		};
@@ -434,7 +438,7 @@ namespace ACETeam_Coroutines
 		public:
 			virtual EStatus Start(FCoroutineExecutor* Exec) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Sync"); }
 #endif
 		};
@@ -582,7 +586,7 @@ namespace ACETeam_Coroutines
 	}
 
 	//Waits for the specified number of seconds fetched from shared float
-	inline FCoroutineNodeRef _Wait(TSharedRef<float> const& FloatVar)
+	inline FCoroutineNodeRef _Wait(TCoroVar<float> const& FloatVar)
 	{
 		return _Wait([=]{ return *FloatVar; });
 	}
@@ -637,6 +641,34 @@ namespace ACETeam_Coroutines
 		}
 	}
 
+	//A scope that only evaluates its exit lambda if its owning object is still valid
+	//This should only be used for cleanup specific to that object, otherwise you might skip important cleanup logic!
+	template<typename TOnScopeExit>
+	Detail::FScopeHelper _ScopeWeak(UObject* Owner, TOnScopeExit const& OnScopeExit)
+	{
+		if constexpr (TFunctorTraits<TOnScopeExit>::ArgCount > 0)
+		{
+			static_assert(TFunctorTraits<TOnScopeExit>::ArgCount == 1 &&
+				std::is_same_v<typename TFunctorTraits<TOnScopeExit>::template NthArg<0>, EStatus>,
+				"Scope lambdas can only receive one EStatus argument or no arguments");
+			return _Scope([=, Weak = MakeWeakObjectPtr(Owner)](EStatus Status)
+			{
+				if (!Weak.IsValid())
+					return;
+				OnScopeExit(Status);
+			});
+		}
+		else
+		{
+			return _Scope([=, Weak = MakeWeakObjectPtr(Owner)](EStatus /*Status*/)
+			{
+				if (!Weak.IsValid())
+					return;
+				OnScopeExit();
+			});
+		}
+	}
+
 	//Negates the success or failure of its child.
 	template<typename TChild>
 	FCoroutineNodeRef _Not(TChild Body)
@@ -647,7 +679,7 @@ namespace ACETeam_Coroutines
 	}
 
 	//Captures the return value of its child into a shared bool variable, prevents failure from propagating upward
-	Detail::FCaptureReturnHelper ACETEAM_COROUTINES_API _CaptureReturn(TSharedRef<bool> const& Var);
+	Detail::FCaptureReturnHelper ACETEAM_COROUTINES_API _CaptureReturn(TCoroVar<bool> const& Var);
 
 	//Catches any failure and prevents it from propagating upward. Similar to _CaptureReturn, but ignores the return value
 	template<typename TChild>

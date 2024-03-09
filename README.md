@@ -116,6 +116,7 @@ _Scope([]{ UE_LOG(LogTemp, Log, TEXT("Scope exit"); })
 ...
 )
 ```
+- ```_ScopeWeak```: Same as ```_Scope```, but only evaluates its exit lambda if its owning ```UObject``` is still valid
 - ```_Not```: Negates the return value of its branch, i.e. success is failure, failure is success.
 - ```_Catch```: Prevents failure of its branch from propagating.
 - ```_CaptureReturn```: Same as ```_Catch``` but also stores branch return value into a shared bool variable.

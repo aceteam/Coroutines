@@ -28,7 +28,7 @@ FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
 	//Shared ptr values can be used to share data between different execution branches,
 	// or different steps in your coroutine
 	//This way they're guaranteed to share the same lifetime as the code that's using them
-	auto SharedValue = MakeShared<int>(0);
+	auto SharedValue = CoroVar<int>(0);
 
 	constexpr int TextPrintTimes = 5;
 	

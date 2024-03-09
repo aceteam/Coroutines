@@ -4,7 +4,7 @@
 
 #include "CoroutineLog.h"
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 #include "GameplayDebugger.h"
 #include "GameplayDebugger/GameplayDebuggerCategory_Coroutines.h"
 #endif
@@ -13,7 +13,7 @@ void FACETeam_CoroutinesModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 	//If the gameplay debugger is available, register the category and notify the editor about the changes
 	IGameplayDebugger& GameplayDebuggerModule = IGameplayDebugger::Get();
 

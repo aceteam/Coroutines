@@ -72,7 +72,7 @@ namespace ACETeam_Coroutines
 				Property = FMath::Lerp(StartValue, TargetValue, t);
 				return CurAlpha < 1.0f ? Running : Completed;
 			}
-#if WITH_GAMEPLAY_DEBUGGER
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual FString Debug_GetName() const override { return TEXT("Tween"); }
 #endif
 
