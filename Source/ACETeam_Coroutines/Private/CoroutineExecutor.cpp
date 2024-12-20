@@ -1,6 +1,9 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 #include "CoroutineExecutor.h"
+
+#include "CoroutineElements.h"
 #include "Algo/Find.h"
+#include "Algo/RemoveIf.h"
 
 const TCHAR* ACETeam_Coroutines::ToString(EStatus Status)
 {
@@ -16,6 +19,22 @@ const TCHAR* ACETeam_Coroutines::ToString(EStatus Status)
 	return TEXT("<INVALID>");
 }
 
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+void ACETeam_Coroutines::FCoroutineExecutor::TraceScopeCleanup()
+{
+	auto CurrentScope = LastScope;
+	while(CurrentScope)
+	{
+		FCpuProfilerTrace::OutputEndEvent();
+		--CurrentTraceDepth;
+		CurrentScope = CurrentScope->ParentScope;
+	}
+	ensure(CurrentTraceDepth == 0);
+	CurrentTraceDepth = 0;
+	LastScope = nullptr;
+	LastCpuTraceSpecId = 0;
+}
+#endif
 
 bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 {
@@ -28,6 +47,73 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 		m_ActiveNodes.AddFront(Info);
 		return false;
 	}
+
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+	if (Info.ScopeNode != LastScope)
+	{
+		int32 CpuTraceSpecId = Info.ScopeNode ? Info.ScopeNode->CpuTraceSpecId : 0;
+		if (Info.ScopeNode && Info.ScopeNode->ParentScope == LastScope)
+		{
+			FCpuProfilerTrace::OutputBeginEvent(CpuTraceSpecId);
+			++CurrentTraceDepth;
+		}
+		else if (LastScope && Info.ScopeNode == LastScope->ParentScope)
+		{
+			FCpuProfilerTrace::OutputEndEvent();
+			--CurrentTraceDepth;
+		}
+		else
+		{
+			TArray<Detail::FNamedScopeNode*, TInlineAllocator<8>> LastAncestors;
+			TArray<Detail::FNamedScopeNode*, TInlineAllocator<8>> CurrentAncestors;
+			auto CurrentScope = LastScope ? LastScope->ParentScope : nullptr;
+			while (CurrentScope)
+			{
+				LastAncestors.Add(CurrentScope);
+				CurrentScope = CurrentScope->ParentScope;
+			}
+			CurrentScope = Info.ScopeNode ? Info.ScopeNode->ParentScope : nullptr;
+			while (CurrentScope)
+			{
+				CurrentAncestors.Add(CurrentScope);
+				CurrentScope = CurrentScope->ParentScope;
+			}
+			int CommonAncestors = 0;
+			for (; CommonAncestors < LastAncestors.Num() && CommonAncestors < CurrentAncestors.Num(); ++CommonAncestors)
+			{
+				if (LastAncestors[LastAncestors.Num() - 1 - CommonAncestors] != CurrentAncestors[CurrentAncestors.Num() - 1 - CommonAncestors])
+					break;
+			}
+			int32 NumToPop = LastAncestors.Num() - CommonAncestors + (LastScope != nullptr);
+			ensure(CurrentTraceDepth == LastAncestors.Num() + (LastScope != nullptr));
+			for (int i = 0; i < NumToPop; ++i)
+			{
+				FCpuProfilerTrace::OutputEndEvent();
+				--CurrentTraceDepth;
+			}
+			if (CpuTraceSpecId != 0)
+			{
+				if (CurrentAncestors.Num() > 0)
+				{
+					for (int i = CurrentAncestors.Num() - 1 - CommonAncestors; i >= 0; --i)
+					{
+						FCpuProfilerTrace::OutputBeginEvent(CurrentAncestors[i]->CpuTraceSpecId);
+						++CurrentTraceDepth;
+					}
+				}
+				FCpuProfilerTrace::OutputBeginEvent(CpuTraceSpecId);
+				++CurrentTraceDepth;
+			}
+			ensure(CurrentTraceDepth == CurrentAncestors.Num() + (Info.ScopeNode != nullptr));
+		}
+		LastScope = Info.ScopeNode;
+		LastCpuTraceSpecId = CpuTraceSpecId;
+	}
+	CurrentExecInfo = &Info;
+	ON_SCOPE_EXIT{
+		CurrentExecInfo = nullptr;
+	};
+#endif
 	
 	if (Info.Status == Aborted)
 	{
@@ -126,6 +212,39 @@ void ACETeam_Coroutines::FCoroutineExecutor::EnqueueCoroutineNode(FCoroutineNode
 	CoroutineInfo.Node = Node;
 	CoroutineInfo.Parent = Parent;
 	CoroutineInfo.Status = static_cast<EStatus>(None);
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+	const FNodeExecInfo* ParentInfo = nullptr;
+	if (Parent)
+	{
+		if (CurrentExecInfo && CurrentExecInfo->Node.Get() == Parent)
+		{
+			ParentInfo = CurrentExecInfo;
+		}
+		else
+		{
+			ParentInfo = m_SuspendedNodes.FindByPredicate(NodeIs(Parent));
+			if (!ParentInfo)
+			{
+				ParentInfo = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Parent));
+				ensure(ParentInfo);
+			}
+		}
+	}
+	if (Node->Debug_IsDebuggerScope())
+	{
+		auto AsScopeNode = static_cast<Detail::FNamedScopeNode*>(&Node.Get());
+		if (ParentInfo)
+		{
+			ensure(AsScopeNode->ParentScope == nullptr || AsScopeNode->ParentScope == ParentInfo->ScopeNode);
+			AsScopeNode->ParentScope = ParentInfo->ScopeNode;
+		}
+		CoroutineInfo.ScopeNode = AsScopeNode;
+	}
+	else if (ParentInfo)
+	{
+		CoroutineInfo.ScopeNode = ParentInfo->ScopeNode;
+	}
+#endif
 	m_ActiveNodes.Add(CoroutineInfo);
 }
 
@@ -173,25 +292,31 @@ void ACETeam_Coroutines::FCoroutineExecutor::ProcessNodeEnd( FNodeExecInfo& Info
 
 void ACETeam_Coroutines::FCoroutineExecutor::Cleanup()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FCoroutineExecutor::Cleanup);
+	
 	auto Pred = [](FNodeExecInfo const& Info) { return Info.Status == Aborted; };
 	m_SuspendedNodes.RemoveAllSwap(Pred);
 
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
-	const double DropTime = FApp::GetCurrentTime() - 60.0f;
-	for (auto RowIt = DebuggerInfo.CreateIterator(); RowIt; ++RowIt)
 	{
-		for (auto It = RowIt->Entries.CreateIterator(); It; ++It)
 		{
-			if (It->EndTime < 0.0f)
-				continue;
-			if (It->EndTime < DropTime)
+			TRACE_CPUPROFILER_EVENT_SCOPE(DebuggerEntryDrop);
+			const double DropTime = FApp::GetCurrentTime() - 60.0f;
+			for (auto RowIt = DebuggerInfo.CreateIterator(); RowIt; ++RowIt)
 			{
-				It.RemoveCurrent();
+				while (RowIt->Entries.Num() > 0 && RowIt->Entries.First().EndTime >= 0.0f && RowIt->Entries.First().EndTime < DropTime)
+				{
+					RowIt->Entries.PopFront();
+				}
 			}
 		}
-		if (RowIt->Entries.Num() == 0)
 		{
-			RowIt.RemoveCurrent();
+			TRACE_CPUPROFILER_EVENT_SCOPE(DebuggerRowDrop);
+			const int32 NewEnd = Algo::StableRemoveIf(DebuggerInfo, [](FDebuggerRow const& Row)
+			{
+				return Row.Entries.Num() == 0;
+			});
+			DebuggerInfo.SetNum(NewEnd);
 		}
 	}
 #endif
@@ -265,9 +390,11 @@ void ACETeam_Coroutines::FCoroutineExecutor::ForceNodeEnd( FCoroutineNode* Node,
 void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeStart(FCoroutineNode* Node, FCoroutineNode* Parent, EStatus Status)
 {
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
+	TRACE_CPUPROFILER_EVENT_SCOPE(FCoroutineExecutor::TrackNodeStart);
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
 	if (!RowForNode)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FCoroutineExecutor::TrackNodeStart);
 		int IndexToInsert = DebuggerInfo.Num();
 		FCoroutineNode* Scope = nullptr;
 		int Depth = 0;
@@ -319,6 +446,7 @@ RowAssigned:
 void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeSuspendFromUpdate(FCoroutineNode* Node)
 {
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
+	TRACE_CPUPROFILER_EVENT_SCOPE(FCoroutineExecutor::TrackNodeSuspendFromUpdate);
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
 	if (ensure(RowForNode))
 	{
@@ -333,6 +461,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeSuspendFromUpdate(FCorouti
 void ACETeam_Coroutines::FCoroutineExecutor::TrackNodeEnd(FCoroutineNode* Node, EStatus Status)
 {
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
+	TRACE_CPUPROFILER_EVENT_SCOPE(FCoroutineExecutor::TrackNodeEnd);
 	FDebuggerRow* RowForNode = DebuggerInfo.FindByKey(Node);
 	if (RowForNode)
 	{

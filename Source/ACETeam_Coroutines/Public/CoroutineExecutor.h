@@ -6,6 +6,11 @@
 
 namespace ACETeam_Coroutines
 {
+	namespace Detail
+	{
+		class FNamedScopeNode;
+	}
+
 	class ACETEAM_COROUTINES_API FCoroutineExecutor
 	{
 		enum
@@ -20,6 +25,9 @@ namespace ACETeam_Coroutines
 			FCoroutineNodePtr Node;
 			FCoroutineNode* Parent = nullptr;
 			EStatus Status = static_cast<EStatus>(None);
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+			Detail::FNamedScopeNode* ScopeNode = nullptr;
+#endif
 		};
 		
 		typedef TRingBuffer<FNodeExecInfo> ActiveNodes;
@@ -31,6 +39,14 @@ namespace ACETeam_Coroutines
 		//Step count that's incremented each time the executor completes a full step (usually once per frame)
 		//Used by loops to determine when they should stop their work for the step
 		int m_StepCount= 0;
+
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+		int32 LastCpuTraceSpecId = 0;
+		int32 CurrentTraceDepth = 0;
+		const Detail::FNamedScopeNode* LastScope = nullptr;
+		const FNodeExecInfo* CurrentExecInfo = nullptr;
+		void TraceScopeCleanup();
+#endif
 
 		bool SingleStep(float DeltaTime);
 		
@@ -66,7 +82,16 @@ namespace ACETeam_Coroutines
 
 		void Step(float DeltaTime)
 		{
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+			TRACE_CPUPROFILER_EVENT_SCOPE(FCoroutineExecutor::Step);
+#endif
+			
 			while (SingleStep(DeltaTime)) { continue; }
+			
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+			TraceScopeCleanup();
+#endif
+			
 			Cleanup();
 			++m_StepCount;
 		}
@@ -134,7 +159,7 @@ namespace ACETeam_Coroutines
 			bool bIsDeferredNodeGenerator:1;
 			bool bIsScope:1;
 			bool bIsLeaf:1;
-			TArray<FDebuggerEntry> Entries;
+			TRingBuffer<FDebuggerEntry> Entries;
 			bool operator==(const FCoroutineNode* InNode) const { return Node == InNode; }
 		};
 		TArray<FDebuggerRow> DebuggerInfo;

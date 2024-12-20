@@ -18,12 +18,15 @@ public:
 	virtual void DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext) override;
 
 	void ToggleCompactMode();
+	void ScrollDown();
+	void ScrollUp();
 
 	double GraphTimeWindow = 10.0;
 
 	double LastHeight = 0.0;
 
 	bool bCompactMode = true;
+	int Offset = 0;
 };
 
 #endif // WITH_ACETEAM_COROUTINE_DEBUGGER

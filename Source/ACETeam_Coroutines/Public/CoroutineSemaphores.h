@@ -11,6 +11,7 @@ namespace ACETeam_Coroutines
 	}
 	
 	typedef TSharedRef<Detail::FSemaphore> FSemaphoreRef;
+	typedef TSharedPtr<Detail::FSemaphore> FSemaphorePtr;
 	
 	namespace Detail
 	{
@@ -39,6 +40,7 @@ namespace ACETeam_Coroutines
 		class ACETEAM_COROUTINES_API FSemaphore
 		{
 		public:
+			FSemaphore() = default;
 			FSemaphore(int InMaxActive)
 			: MaxActive(InMaxActive)
 			{
@@ -49,9 +51,10 @@ namespace ACETeam_Coroutines
 			bool DropFromQueue(FSemaphoreHandlerRef const& Handler);
 			void Release();
 			void SetMaxActive(int NewMaxActive);
+			int GetCurrentActiveCount() const { return CurrentActive; }
 			
 		private:
-			int MaxActive;
+			int MaxActive = 1;
 			int CurrentActive = 0;
 			TArray<FSemaphoreHandlerRef, TInlineAllocator<1>> QueuedHandlers;
 		};

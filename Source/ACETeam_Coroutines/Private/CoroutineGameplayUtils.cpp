@@ -40,3 +40,14 @@ void ACETeam_Coroutines::Detail::FSoundLoopNode::End(FCoroutineExecutor* Exec, E
 		SpawnedComponent->FadeOut(FadeOutTime, 0.0f);
 	}
 }
+
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+FString ACETeam_Coroutines::Detail::FSoundLoopNode::Debug_GetName() const
+{
+	if (auto AudioComponent = SpawnedComponent.Get())
+	{
+		return FString::Printf(TEXT("SoundLoop: %s"), *AudioComponent->GetSound()->GetName());
+	}
+	return TEXT("SoundLoop");
+}
+#endif

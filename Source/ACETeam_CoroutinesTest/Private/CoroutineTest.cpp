@@ -7,7 +7,6 @@
 #include "CoroutinesWorldSubsystem.h"
 #include "CoroutinesSubsystem.h"
 #include "CoroutineAsync.h"
-#include "CoroutineGenerator.h"
 #include "CoroutineSemaphores.h"
 #include "DrawDebugHelpers.h"
 
@@ -155,30 +154,27 @@ FCoroutineNodeRef _CoroutineEventsTest()
 void SemaphoreTest()
 {
 	auto Semaphore = MakeSemaphore(4);
-	UCoroutinesSubsystem::Get().StartCoroutine(
-		_GenerateChildren(_Sync(), [&](auto AddChild)
-		{
-			auto _MyCoroutine = [=](int Num)
-			{
-				return
+	auto _MyCoroutine = [=](int Num)
+	{
+		return
+		_Seq(
+			[=] { UE_LOG(LogTemp, Log, TEXT("Coroutine instance %d will %s"), Num, Semaphore->IsAvailable() ? TEXT("go through semaphore now") : TEXT("wait at semaphore")); },
+			_SemaphoreScope(Semaphore)
+			(
 				_Seq(
-					[=] { UE_LOG(LogTemp, Log, TEXT("Coroutine instance %d will %s"), Num, Semaphore->IsAvailable() ? TEXT("go through semaphore now") : TEXT("wait at semaphore")); },
-					_SemaphoreScope(Semaphore)
-					(
-						_Seq(
-							[=] { UE_LOG(LogTemp, Log, TEXT("Coroutine instance %d entering semaphore"), Num); },
-							_Wait(1.0f),
-							[=] { UE_LOG(LogTemp, Log, TEXT("Coroutine instance %d exiting semaphore"), Num); }
-						)
-					)
-				);
-			};
-			for (int i = 0; i < 10; ++i)
-			{
-				AddChild(_MyCoroutine(i+1));
-			}
-		})
-	);
+					[=] { UE_LOG(LogTemp, Log, TEXT("Coroutine instance %d entering semaphore"), Num); },
+					_Wait(1.0f),
+					[=] { UE_LOG(LogTemp, Log, TEXT("Coroutine instance %d exiting semaphore"), Num); }
+				)
+			)
+		);
+	};
+	auto _Main = _Sync();
+	for (int i = 0; i < 10; ++i)
+	{
+		_Main->AddChild(_MyCoroutine(i+1));
+	}
+	UCoroutinesSubsystem::Get().StartCoroutine(_Main);
 }
 
 void ACoroutineTest::BeginPlay()

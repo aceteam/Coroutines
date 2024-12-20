@@ -1,6 +1,8 @@
 // Copyright ACE Team Software S.A. All Rights Reserved.
 #pragma once
 
+class UCoroutinesWorldSubsystem;
+
 namespace ACETeam_Coroutines
 {
 enum EStatus
@@ -40,9 +42,11 @@ public:
 private:
 	friend class FGameplayDebuggerCategory_Coroutines;
 	friend class FCoroutineExecutor;
+	friend class ::UCoroutinesWorldSubsystem;
 	virtual FString Debug_GetName() const { return FString(); }
 	virtual bool Debug_IsDeferredNodeGenerator() const { return false; }
 	virtual bool Debug_IsDebuggerScope() const { return false; }
+	virtual int32 Debug_GetCpuTraceId() const { return 0; }
 #endif
 };
 

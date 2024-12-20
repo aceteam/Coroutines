@@ -9,6 +9,21 @@ namespace ACETeam_Coroutines
 {
 namespace Detail
 {
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+	int32 FNamedScopeHelper::GetCpuProfilerTraceSpecId() const
+	{
+		static TMap<FName, int32> CachedIds;
+		FName AsName(Name);
+		if (auto IntPtr = CachedIds.Find(AsName))
+		{
+			return *IntPtr;
+		}
+		int NewId = FCpuProfilerTrace::OutputEventType(*Name);
+		CachedIds.Add(AsName, NewId);
+		return NewId;
+	}
+#endif
+
 	void FCompositeCoroutine::AddChild( FCoroutineNodeRef const& Child )
 	{
 		m_Children.Add(Child);

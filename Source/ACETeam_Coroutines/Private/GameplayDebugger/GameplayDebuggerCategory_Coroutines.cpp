@@ -18,6 +18,8 @@ FGameplayDebuggerCategory_Coroutines::FGameplayDebuggerCategory_Coroutines()
 	bShowOnlyWithDebugActor = false;
 
 	BindKeyPress(EKeys::RightBracket.GetFName(), FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Coroutines::ToggleCompactMode, EGameplayDebuggerInputMode::Local);
+	BindKeyPress(EKeys::F.GetFName(), FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Coroutines::ScrollDown, EGameplayDebuggerInputMode::Local);
+	BindKeyPress(EKeys::R.GetFName(), FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Coroutines::ScrollUp, EGameplayDebuggerInputMode::Local);
 }
 
 static TArray<FString> GCoroutineDebuggerFilter;
@@ -30,7 +32,7 @@ struct FGameplayDebuggerCategory_CoroutinesCommands
 	}
 };
 
-static FAutoConsoleCommandWithWorldAndArgs SetFontSizeCmd(
+static FAutoConsoleCommandWithWorldAndArgs SetFilterCmd(
 	TEXT("gdt.Coroutine.SetFilter"),
 	TEXT("Configures zero or more filter strings for the coroutine debugger. Usage: gdt.Coroutine.SetFilter <string1> <string2> ..."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FGameplayDebuggerCategory_CoroutinesCommands::SetFilter));
@@ -45,6 +47,8 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	FGameplayDebuggerCanvasContext& CanvasContext)
 {
 	CanvasContext.Printf(TEXT("\n[{yellow}%s{white}] Toggle Compact mode"), *GetInputHandlerDescription(0));
+	CanvasContext.Printf(TEXT("\n[{yellow}%s{white}] Scroll down"), *GetInputHandlerDescription(1));
+	CanvasContext.Printf(TEXT("\n[{yellow}%s{white}] Scroll up"), *GetInputHandlerDescription(2));
 	
 	UCanvas* Canvas = CanvasContext.Canvas.Get();
 	if (!Canvas)
@@ -101,6 +105,16 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	BackgroundTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
 	BackgroundTile.Draw(FCanvas);
 
+	if (Offset > 0)
+	{
+		FCanvasTileItem ScrollUpTile(FVector2D{ Flt(X-5.0), Flt(Y-15.0)}, FVector2D(Flt(GraphWidth + 10.0), Flt(10.0)), FLinearColor::Black.CopyWithNewOpacity(0.5f));
+		ScrollUpTile.BlendMode = SE_BLEND_TranslucentAlphaOnly;
+		ScrollUpTile.Draw(FCanvas);
+
+		FCanvasTextItem ScrollUpText(FVector2D{ Flt(X-5.0 + GraphWidth*0.5), Flt(Y-15.0)}, INVTEXT("More..."), GEngine->GetTinyFont(), FLinearColor::White);
+		ScrollUpText.Draw(FCanvas);
+	}
+
 	struct FScopeInfo
 	{
 		FCoroutineNode* Scope;
@@ -140,16 +154,35 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 	{
 		if (Exec->DebuggerInfo.Num() == 0)
 			continue;
-		ScopeInfo.Reset();
-		ScopeInfo.Add( FScopeInfo{Exec->DebuggerInfo[0].Node, Y + RowHeight*0.6, 0.0} );
-		for (auto RowIt = Exec->DebuggerInfo.CreateConstIterator(); RowIt; ++RowIt)
+		auto IsRootScope = [](auto RowIt)
 		{
+			return RowIt->bIsScope && RowIt->Parent == nullptr;
+		};
+		int FirstNodeToShow = 0;
+		if (Offset > 0)
+		{
+			int SkippedRoots = 0;
+			for (int i = 0; i < Exec->DebuggerInfo.Num(); ++i)
+			{
+				if (IsRootScope(&Exec->DebuggerInfo[i]))
+				{
+					++SkippedRoots;
+					if (SkippedRoots > Offset)
+					{
+						FirstNodeToShow = i;
+						break;
+					}
+				}
+			}
+		}
+		ScopeInfo.Reset();
+		ScopeInfo.Add( FScopeInfo{Exec->DebuggerInfo[FirstNodeToShow].Node, Y + RowHeight*0.6, 0.0} );
+		auto View = MakeArrayView(Exec->DebuggerInfo.GetData()+FirstNodeToShow, Exec->DebuggerInfo.Num() - FirstNodeToShow);
+		for (int i = 0; i < View.Num(); ++i)
+		{
+			auto RowIt = &View[i];
 			if (GCoroutineDebuggerFilter.Num() > 0)
 			{
-				auto IsRootScope = [](auto RowIt)
-				{
-					return RowIt->bIsScope && RowIt->Parent == nullptr;
-				};
 				auto StringPassesFilter = [&] (FString String)
 				{
 					for (auto& Filter : GCoroutineDebuggerFilter)
@@ -178,7 +211,7 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 			{
 				continue;
 			}
-			const auto* FirstEntryToRender = Row.Entries.FindByPredicate([&](const FCoroutineExecutor::FDebuggerEntry& Entry)
+			const auto* FirstEntryToRender = Algo::FindByPredicate(Row.Entries, [&](const FCoroutineExecutor::FDebuggerEntry& Entry)
 			{
 				return Entry.EndTime < 0.0 || Entry.EndTime >= StartTime;
 			});
@@ -186,7 +219,7 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 			{
 				continue;
 			}
-			const int FirstEntryIndex = FirstEntryToRender - Row.Entries.GetData();
+			const int FirstEntryIndex = Row.Entries.ConvertPointerToIndex(FirstEntryToRender);
 			int DrawnEntries = 0;
 			double FirstEntryX = 0.0;
 			double Indent = IndentForRow(Row);
@@ -242,6 +275,16 @@ void FGameplayDebuggerCategory_Coroutines::DrawData(APlayerController* OwnerPC,
 void FGameplayDebuggerCategory_Coroutines::ToggleCompactMode()
 {
 	bCompactMode = !bCompactMode;
+}
+
+void FGameplayDebuggerCategory_Coroutines::ScrollDown()
+{
+	Offset += 1;
+}
+
+void FGameplayDebuggerCategory_Coroutines::ScrollUp()
+{
+	Offset = FMath::Max(0, Offset-1);
 }
 
 #endif // WITH_ACETEAM_COROUTINE_DEBUGGER

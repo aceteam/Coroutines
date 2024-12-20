@@ -14,8 +14,19 @@ UCoroutinesWorldSubsystem& UCoroutinesWorldSubsystem::Get(const UObject* WorldCo
 	return *System;
 }
 
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+bool GEnsureCoroutinesAreNamed = false;
+FAutoConsoleVariableRef EnsureCoroutinesAreNamedCVar (TEXT("ace.EnsureCoroutinesAreNamed"), GEnsureCoroutinesAreNamed, TEXT("If this is on, an ensure will be triggered if a non-named scope is added to the subsystem directly"));
+#endif
+
 void UCoroutinesWorldSubsystem::StartCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine)
 {
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+	if (GEnsureCoroutinesAreNamed)
+	{
+		ensureAlways(Coroutine->Debug_IsDebuggerScope());
+	}
+#endif
 	Executor.EnqueueCoroutine(Coroutine);
 }
 

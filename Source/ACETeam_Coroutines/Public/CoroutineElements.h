@@ -2,11 +2,12 @@
 #pragma once
 
 #include "CoroutineExecutor.h"
-#include "CoroutineNode.h"
-#include "FunctionTraits.h"
+#include "CoroutineParameter.h"
 
 namespace ACETeam_Coroutines
 {
+	class ACETEAM_COROUTINES_API FCoroutineExecutor; //forward declaration so friend class declarations work correctly
+	
 	namespace Detail
 	{
 		template <typename TLambda>
@@ -114,6 +115,35 @@ namespace ACETeam_Coroutines
 				return Failed;
 			}
 		};
+		
+		template <typename TLambdaRetType = void, typename Enable=void>
+		struct TNodeTemplateForLambdaRetType
+		{
+			//template<typename TLambda>
+			//using Value = TSomeTemplate<TLambda>;
+		};
+
+		template <>
+		struct TNodeTemplateForLambdaRetType<void>
+		{
+			template<typename TLambda>
+			using Value = TLambdaCoroutine<TLambda>;
+		};
+
+		template <>
+		struct TNodeTemplateForLambdaRetType<bool>
+		{
+			template<typename TLambda>
+			using Value = TConditionLambdaCoroutine<TLambda>;
+		};
+
+		template <typename TCoroutine>
+		struct TNodeTemplateForLambdaRetType<TSharedRef<TCoroutine, DefaultSPMode>,
+		typename TEnableIf<TIsDerivedFrom<TCoroutine, FCoroutineNode>::Value, void>::Type>
+		{
+			template<typename TLambda>
+			using Value = TDeferredCoroutineWrapper<TLambda>;
+		};
 
 		class ACETEAM_COROUTINES_API FErrorNode : public FCoroutineNode
 		{
@@ -144,6 +174,17 @@ namespace ACETeam_Coroutines
 	//Convenience node that's suspended forever, useful as a sort of _Nop in a _Race context
 	FCoroutineNodeRef ACETEAM_COROUTINES_API _WaitForever();
 
+	//Convert a lambda into a coroutine node according to its return type
+	//This is usually done automatically in the context of existing nodes, but you can use this to force the conversion
+	//when you don't have another node to add this to.
+	template <typename TLambda>
+	typename TEnableIf<TIsFunctor<TLambda>::value, FCoroutineNodeRef>::Type
+		_ConvertLambda(TLambda const& Lambda)
+	{
+		typedef typename ::TFunctorTraits<TLambda>::RetType RetType;
+		return MakeShared<typename Detail::TNodeTemplateForLambdaRetType<RetType>::template Value<TLambda>, DefaultSPMode>(Lambda);
+	}
+
 	namespace Detail
 	{
 		class ACETEAM_COROUTINES_API FCoroutineDecorator : public FCoroutineNode
@@ -151,12 +192,11 @@ namespace ACETeam_Coroutines
 		protected:
 			FCoroutineNodePtr m_Child;
 		public:
-			// Start is normal behavior for decorators, but not forced
+			// Default behavior for decorator is to run child and suspend
 			virtual EStatus Start(FCoroutineExecutor* Executor) override;
 			void AddChild(FCoroutineNodeRef const& Child);
 			virtual void End(FCoroutineExecutor* Executor, EStatus Status) override;
 			virtual EStatus OnChildStopped(FCoroutineExecutor* Exec, EStatus Status, FCoroutineNode* Child) override;
-			virtual int GetNumChildren() { return m_Child ? 1 : 0; }
 		};
 
 		class ACETEAM_COROUTINES_API FNot : public FCoroutineDecorator
@@ -217,12 +257,45 @@ namespace ACETeam_Coroutines
 		class TScope : public FCoroutineDecorator
 		{
 			TScopeEndedLambda m_OnScopeEnd;
-		
 		public:
 			TScope(TScopeEndedLambda const& OnScopeEnd) : m_OnScopeEnd(OnScopeEnd){}
 			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override
 			{
-				m_OnScopeEnd(Status);
+				CallLambda(Status);
+				return FCoroutineDecorator::End(Exec, Status);
+			}
+		protected:
+			void CallLambda(EStatus Status)
+			{
+				static_assert(std::is_void_v<typename TFunctorTraits<TScopeEndedLambda>::RetType>,
+					"Scope lambdas must have void return type");
+				if constexpr (TFunctorTraits<TScopeEndedLambda>::ArgCount > 0)
+				{
+					static_assert(TFunctorTraits<TScopeEndedLambda>::ArgCount == 1 &&
+						std::is_same_v<typename TFunctorTraits<TScopeEndedLambda>::template NthArg<0>, EStatus>,
+						"Scope lambdas can only receive one EStatus argument or no arguments");
+					m_OnScopeEnd(Status);
+				}
+				else
+				{
+					m_OnScopeEnd();
+				}
+			}
+		};
+
+		template<typename TScopeEndedLambda>
+		class TScopeWeak : public TScope<TScopeEndedLambda>
+		{
+			FWeakObjectPtr m_Owner;
+		public:
+			TScopeWeak(UObject* Owner, TScopeEndedLambda const& Lambda)
+				: TScope<TScopeEndedLambda>(Lambda)
+				, m_Owner(Owner)
+			{}
+			virtual void End(FCoroutineExecutor* Exec, EStatus Status) override
+			{
+				if (m_Owner.IsValid())
+					this->CallLambda(Status);
 				return FCoroutineDecorator::End(Exec, Status);
 			}
 		};
@@ -245,14 +318,18 @@ namespace ACETeam_Coroutines
 		{
 		protected:
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
+			FNamedScopeNode* ParentScope = nullptr; //set by executor
 			FString Name;
+			int32 CpuTraceSpecId;
 			virtual FString Debug_GetName() const override { return Name; }
 			virtual bool Debug_IsDebuggerScope() const override { return true; }
+			friend class ::ACETeam_Coroutines::FCoroutineExecutor;
 #endif
 		public:
-			FNamedScopeNode(FString&& InName)
+			FNamedScopeNode(FString&& InName, int InCpuTraceId)
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
-				:Name(InName)
+				: Name(InName)
+				, CpuTraceSpecId(InCpuTraceId)
 #endif
 			{}
 			
@@ -264,11 +341,15 @@ namespace ACETeam_Coroutines
 
 			FNamedScopeHelper(FString const& InName) : Name(InName) {}
 
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+			int32 GetCpuProfilerTraceSpecId() const;
+#endif
+
 			template <typename TChild>
 			FCoroutineNodeRef operator[] (TChild&& Body)
 			{
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
-				auto NamedRoot = MakeShared<FNamedScopeNode, DefaultSPMode> (MoveTemp(Name));
+				auto NamedRoot = MakeShared<FNamedScopeNode, DefaultSPMode> (MoveTemp(Name), GetCpuProfilerTraceSpecId());
 				AddCoroutineChild(NamedRoot, Body);
 				return NamedRoot;
 #else
@@ -450,41 +531,11 @@ namespace ACETeam_Coroutines
 			Composite->AddChild(First);
 		}
 
-		template <typename TLambdaRetType = void, typename Enable=void>
-		struct TNodeTemplateForLambdaRetType
-		{
-			//template<typename TLambda>
-			//using Value = TSomeTemplate<TLambda>;
-		};
-
-		template <>
-		struct TNodeTemplateForLambdaRetType<void>
-		{
-			template<typename TLambda>
-			using Value = TLambdaCoroutine<TLambda>;
-		};
-
-		template <>
-		struct TNodeTemplateForLambdaRetType<bool>
-		{
-			template<typename TLambda>
-			using Value = TConditionLambdaCoroutine<TLambda>;
-		};
-
-		template <typename TCoroutine>
-		struct TNodeTemplateForLambdaRetType<TSharedRef<TCoroutine, DefaultSPMode>,
-		typename TEnableIf<TIsDerivedFrom<TCoroutine, FCoroutineNode>::Value, void>::Type>
-		{
-			template<typename TLambda>
-			using Value = TDeferredCoroutineWrapper<TLambda>;
-		};
-
 		template <typename TCoroutine, typename TLambda>
 		typename TEnableIf<TIsFunctor<TLambda>::value, void>::Type
 		AddCoroutineChild(TSharedRef<TCoroutine, DefaultSPMode>& Composite, TLambda& First)
 		{
-			typedef typename ::TFunctorTraits<TLambda>::RetType RetType;
-			Composite->AddChild(MakeShared<typename TNodeTemplateForLambdaRetType<RetType>::template Value<TLambda>, DefaultSPMode>(First));
+			Composite->AddChild(_ConvertLambda(First));
 		}
 		
 		inline void AddCompositeChildren(TSharedRef<FCompositeCoroutine, DefaultSPMode>&)
@@ -625,20 +676,7 @@ namespace ACETeam_Coroutines
 	template<typename TOnScopeExit>
 	Detail::FScopeHelper _Scope(TOnScopeExit const& OnScopeExit)
 	{
-		static_assert(std::is_void_v<typename TFunctorTraits<TOnScopeExit>::RetType>,
-			"Scope lambdas must have void return type");
-		if constexpr (TFunctorTraits<TOnScopeExit>::ArgCount > 0)
-		{
-			static_assert(TFunctorTraits<TOnScopeExit>::ArgCount == 1 &&
-				std::is_same_v<typename TFunctorTraits<TOnScopeExit>::template NthArg<0>, EStatus>,
-				"Scope lambdas can only receive one EStatus argument or no arguments");
-			return Detail::FScopeHelper(MakeShared<Detail::TScope<TOnScopeExit>, DefaultSPMode>(OnScopeExit));
-		}
-		else
-		{
-			auto Wrapper = [=](EStatus) { OnScopeExit(); };
-			return Detail::FScopeHelper(MakeShared<Detail::TScope<decltype(Wrapper)>, DefaultSPMode>(Wrapper));
-		}
+		return Detail::FScopeHelper(MakeShared<Detail::TScope<TOnScopeExit>, DefaultSPMode>(OnScopeExit));
 	}
 
 	//A scope that only evaluates its exit lambda if its owning object is still valid
@@ -646,27 +684,7 @@ namespace ACETeam_Coroutines
 	template<typename TOnScopeExit>
 	Detail::FScopeHelper _ScopeWeak(UObject* Owner, TOnScopeExit const& OnScopeExit)
 	{
-		if constexpr (TFunctorTraits<TOnScopeExit>::ArgCount > 0)
-		{
-			static_assert(TFunctorTraits<TOnScopeExit>::ArgCount == 1 &&
-				std::is_same_v<typename TFunctorTraits<TOnScopeExit>::template NthArg<0>, EStatus>,
-				"Scope lambdas can only receive one EStatus argument or no arguments");
-			return _Scope([=, Weak = MakeWeakObjectPtr(Owner)](EStatus Status)
-			{
-				if (!Weak.IsValid())
-					return;
-				OnScopeExit(Status);
-			});
-		}
-		else
-		{
-			return _Scope([=, Weak = MakeWeakObjectPtr(Owner)](EStatus /*Status*/)
-			{
-				if (!Weak.IsValid())
-					return;
-				OnScopeExit();
-			});
-		}
+		return Detail::FScopeHelper(MakeShared<Detail::TScopeWeak<TOnScopeExit>, DefaultSPMode>(Owner, OnScopeExit));
 	}
 
 	//Negates the success or failure of its child.
