@@ -4,6 +4,7 @@
 #include "CoroutineElements.h"
 #include "Algo/Find.h"
 #include "Algo/RemoveIf.h"
+#include "Misc/ScopeExit.h"
 
 const TCHAR* ACETeam_Coroutines::ToString(EStatus Status)
 {

@@ -50,6 +50,57 @@ private:
 #endif
 };
 
+//WORKAROUND FOR MISSING TEMPLATES FROM UE5
+#if	ENGINE_MAJOR_VERSION < 5
+	template <typename T, typename DerivedType>
+	struct TIsPointerOrObjectPtrToBaseOfImpl
+	{
+		enum { Value = false };
+	};
+
+	template <typename T, typename DerivedType>
+	struct TIsPointerOrObjectPtrToBaseOfImpl<T*, DerivedType>
+	{
+		enum { Value = std::is_base_of_v<DerivedType, T> };
+	};
+
+	template <typename T, typename DerivedType>
+	struct TIsPointerOrObjectPtrToBaseOf
+	{
+		enum { Value = TIsPointerOrObjectPtrToBaseOfImpl<std::remove_cv_t<T>, DerivedType>::Value };
+	};
+
+	/**
+	 * Trait which determines whether or not a type is a TArray.
+	 */
+	template <typename T> constexpr bool TIsTArray_V = false;
+
+	template <typename InElementType, typename InAllocatorType> constexpr bool TIsTArray_V<               TArray<InElementType, InAllocatorType>> = true;
+	template <typename InElementType, typename InAllocatorType> constexpr bool TIsTArray_V<const          TArray<InElementType, InAllocatorType>> = true;
+	template <typename InElementType, typename InAllocatorType> constexpr bool TIsTArray_V<      volatile TArray<InElementType, InAllocatorType>> = true;
+	template <typename InElementType, typename InAllocatorType> constexpr bool TIsTArray_V<const volatile TArray<InElementType, InAllocatorType>> = true;
+
+	/**
+	 * Traits class which determines whether or not a type is a TSet.
+	 */
+	template <typename T> struct TIsTSet { enum { Value = false }; };
+
+	template <typename ElementType, typename KeyFuncs, typename Allocator> struct TIsTSet<               TSet<ElementType, KeyFuncs, Allocator>> { enum { Value = true }; };
+	template <typename ElementType, typename KeyFuncs, typename Allocator> struct TIsTSet<const          TSet<ElementType, KeyFuncs, Allocator>> { enum { Value = true }; };
+	template <typename ElementType, typename KeyFuncs, typename Allocator> struct TIsTSet<      volatile TSet<ElementType, KeyFuncs, Allocator>> { enum { Value = true }; };
+	template <typename ElementType, typename KeyFuncs, typename Allocator> struct TIsTSet<const volatile TSet<ElementType, KeyFuncs, Allocator>> { enum { Value = true }; };
+
+	/**
+	 * Traits class which determines whether or not a type is a TMap.
+	 */
+	template <typename T> struct TIsTMap { enum { Value = false }; };
+
+	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs> struct TIsTMap<               TMap<KeyType, ValueType, SetAllocator, KeyFuncs>> { enum { Value = true }; };
+	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs> struct TIsTMap<const          TMap<KeyType, ValueType, SetAllocator, KeyFuncs>> { enum { Value = true }; };
+	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs> struct TIsTMap<      volatile TMap<KeyType, ValueType, SetAllocator, KeyFuncs>> { enum { Value = true }; };
+	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs> struct TIsTMap<const volatile TMap<KeyType, ValueType, SetAllocator, KeyFuncs>> { enum { Value = true }; };
+#endif
+	
 //Coroutine variables (shared)
 template <typename T>
 class TCoroVar : public TSharedRef<T>

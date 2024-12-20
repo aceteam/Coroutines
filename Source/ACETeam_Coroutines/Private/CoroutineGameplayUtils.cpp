@@ -46,7 +46,16 @@ FString ACETeam_Coroutines::Detail::FSoundLoopNode::Debug_GetName() const
 {
 	if (auto AudioComponent = SpawnedComponent.Get())
 	{
-		return FString::Printf(TEXT("SoundLoop: %s"), *AudioComponent->GetSound()->GetName());
+#if ENGINE_MAJOR_VERSION < 5
+		auto SoundBase = AudioComponent->Sound;
+#else
+		auto SoundBase = AudioComponent->GetSound();
+#endif
+		if (!SoundBase)
+		{
+			return TEXT("SoundLoop");
+		}
+		return FString::Printf(TEXT("SoundLoop: %s"), *SoundBase->GetName());
 	}
 	return TEXT("SoundLoop");
 }
