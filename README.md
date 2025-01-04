@@ -7,7 +7,7 @@ A notable feature of this plugin compared to the alternatives is the inclusion o
 It's verified to compile and work on:
 - UE Versions:
   - 4.27
-  - 5.1 - 5.3
+  - 5.1 - 5.5
 - Platforms:
   - Win64
   - PS5
@@ -46,10 +46,11 @@ using namespace ACETeam_Coroutines;
 
 FCoroutineNodeRef _CoroutineTest(UWorld* World, FString TextToLog)
 {
-    //Shared ptr values can be used to share data between different execution branches,
+    //Coroutine variables are values that can be used to share data between different execution branches,
     // or different steps in your coroutine
-    //This way they're guaranteed to share the same lifetime as the code that's using them
-    auto SharedValue = MakeShared<int>(0);
+    //They're guaranteed to share the same lifetime as the code that's using them.
+    //They function the same as a shared pointer. They must be dereferenced to read or modify their value
+    auto SharedValue = CoroVar<int>(0);
     //_Seq concatenates coroutine elements in a sequence. It runs one after the other until
     // one of them fails
     //If one of them finishes during a frame, the next in the sequence will be evaluated
@@ -132,9 +133,10 @@ _NamedScope(TEXT("Named coroutine block"))
 - ```_Error```: Fails immediately. Useful as a return value for lambdas that return coroutines.
 - ```_Nop```: Same as ```_Error``` but succeeds immediately.
 - ```_WaitForever```: Remains in a suspended state forever. Can be useful in a ```_Race``` context for dummy execution branches.
+- ```_ConvertLambda```: Converts a lambda into its corresponding coroutine node. This is the same conversion that's usually done when receiving a lambda argument in one of the above functions.
 
 #### Any of the previous building blocks can receive an argument of 4 possible types:
-1. A coroutine node (which is also the return type of any of these blocks)
+1. A coroutine node (which is also the return type of these blocks)
 2. A lambda with no return value.
 3. A lambda with boolean return value. This is especially useful for terminating ```_Loop``` blocks
 4. A lambda that returns a coroutine node. This allows deferring of the creation of a subcoroutine until execution reaches this lambda.
@@ -151,13 +153,19 @@ Other headers that expose additional features:
 - [*CoroutineTween.h*](Source/ACETeam_Coroutines/Public/CoroutineTween.h) to tween values as part of a coroutine. Supports typical easing functions out of the box, as well as custom easing functions.
 - [*CoroutineSemaphores.h*](Source/ACETeam_Coroutines/Public/CoroutineSemaphores.h) has ```MakeSemaphore``` and the ```_Semaphore``` scope that lets you have coroutines wait to access a resource with a limited amount of concurrent users.
 
+## Unreal Insights
+
+Unreal Insights traces will now break down time spent in the coroutine executor according to the ```_NamedScope``` blocks defined for the coroutines you are running. This makes it easier to diagnose cases where coroutine execution might be taking too long.
+
+![Coroutines time breakdown in Unreal Insights trace](docs/insights.png)
+
 ## Visual Debugger
 
 ![Coroutines Visual Debugger as part of the Unreal Engine Gameplay Debugger](docs/visual-debugger.png)
 
 If you activate the Gameplay Debugger (***gdt.Toggle*** console command), you'll see there is a Coroutines category that displays the currently running coroutines. 
 
-If you're using the system heavily you may run out of vertical space to display all of the coroutines currently running. You can use the ***gdt.Coroutine.SetFilter*** console command to reduce those shown to those whose root name contains one of the filter strings.
+If you're using the system heavily you may run out of vertical space to display all of the coroutines currently running. In this case you can either scroll using the Shift+F and Shift+R keys, or you can use the ***gdt.Coroutine.SetFilter*** console command to reduce those shown to those whose root name contains one of the filter strings.
 
 By default, the debugger displays in "compact mode", which only shows the root of the coroutine and "leaf nodes", which are those with no children, e.g. lambdas, and waits.
 
