@@ -21,7 +21,7 @@ The nomenclature and feature set of this plugin was inspired by [**SkookumScript
 
 Since development of SkookumScript was stopped after Agog Labs was acquired by Epic to develop the [**Verse**](https://dev.epicgames.com/documentation/en-us/uefn/verse-language-reference) language, that workflow became very difficult to maintain. So we were forced to find a way to preserve the benefits we saw from that workflow without depending on another language.
 
-This system is currently being used to program the AI and other heavily asynchronous systems in ACE Team's currently unannounced project. 
+This system is currently being used to program the AI and other heavily asynchronous systems in [**The Mound: Omen of Cthulhu**](https://store.steampowered.com/app/2569760/The_Mound_Omen_of_Cthulhu/). 
 
 ## Basic Usage
 As with any other C++ module, you need to add the **"ACETeam_Coroutines"** module to the list of dependencies of your module's .Build.cs file
