@@ -4,12 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "CoroutineExecutor.h"
-#include "CoroutineNode.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "CoroutinesSubsystem.generated.h"
 
 /**
- * Simple subsystem that allows running coroutines from anywhere
+ * Simple subsystem that allows running coroutines from anywhere. This subsystem can be used instead of
+ * UCoroutinesWorldSubsystem for logic that's not tied to the lifetime of a specific world, e.g. editor tools, or
+ * for things that should run always, regardless of whether the game is paused.
  * Usage example: UCoroutinesSubsystem::Get().StartCoroutine(<coroutine>);
  *
  * Ticks only while a coroutine is active, and steps through them on the main thread.

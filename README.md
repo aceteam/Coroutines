@@ -6,8 +6,8 @@ A notable feature of this plugin compared to the alternatives is the inclusion o
 
 It's verified to compile and work on:
 - UE Versions:
-  - 4.27
-  - 5.1 - 5.5
+  - 4.27 (only up to version 1.1.0 of the plugin, since some C++ 20 features are now used in some parts of the code)
+  - 5.1 - 5.7
 - Platforms:
   - Win64
   - PS5
@@ -182,9 +182,6 @@ The colors of the strips shown in the debugger represent their state.
 - 🟨 Yellow means it's suspended, i.e. tracked by the system but not actively being evaluated.
 - 🟦 Blue means it's being polled continuously every frame
 
-## Future work planned
-- Simple utility blocks to wrap async loading of assets
-- Further improvements to debugger usability
 
 ## Alternatives
 Be sure to check out other plugins that approach this problem differently. There are a couple of cool ones that make use of C++ 20 coroutine support:

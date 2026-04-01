@@ -9,21 +9,6 @@ namespace ACETeam_Coroutines
 {
 namespace Detail
 {
-#if WITH_ACETEAM_COROUTINE_DEBUGGER
-	int32 FNamedScopeHelper::GetCpuProfilerTraceSpecId() const
-	{
-		static TMap<FName, int32> CachedIds;
-		FName AsName(Name);
-		if (auto IntPtr = CachedIds.Find(AsName))
-		{
-			return *IntPtr;
-		}
-		int NewId = FCpuProfilerTrace::OutputEventType(*Name);
-		CachedIds.Add(AsName, NewId);
-		return NewId;
-	}
-#endif
-
 	void FCompositeCoroutine::AddChild( FCoroutineNodeRef const& Child )
 	{
 		m_Children.Add(Child);
@@ -254,10 +239,5 @@ FCoroutineNodeRef _WaitForever()
 Detail::FCaptureReturnHelper _CaptureReturn(TCoroVar<bool> const& Var)
 {
 	return Detail::FCaptureReturnHelper(Var);
-}
-
-Detail::FNamedScopeHelper _NamedScope(FString const& RootName)
-{
-	return Detail::FNamedScopeHelper(RootName);
 }
 }

@@ -33,7 +33,6 @@ void ACETeam_Coroutines::FCoroutineExecutor::TraceScopeCleanup()
 	ensure(CurrentTraceDepth == 0);
 	CurrentTraceDepth = 0;
 	LastScope = nullptr;
-	LastCpuTraceSpecId = 0;
 }
 #endif
 
@@ -52,10 +51,10 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
 	if (Info.ScopeNode != LastScope)
 	{
-		int32 CpuTraceSpecId = Info.ScopeNode ? Info.ScopeNode->CpuTraceSpecId : 0;
+		auto* ScopeNamePtr = Info.ScopeNode ? &Info.ScopeNode->Name : nullptr;
 		if (Info.ScopeNode && Info.ScopeNode->ParentScope == LastScope)
 		{
-			FCpuProfilerTrace::OutputBeginEvent(CpuTraceSpecId);
+			FCpuProfilerTrace::OutputBeginDynamicEvent(**ScopeNamePtr);
 			++CurrentTraceDepth;
 		}
 		else if (LastScope && Info.ScopeNode == LastScope->ParentScope)
@@ -92,23 +91,22 @@ bool ACETeam_Coroutines::FCoroutineExecutor::SingleStep( float DeltaTime )
 				FCpuProfilerTrace::OutputEndEvent();
 				--CurrentTraceDepth;
 			}
-			if (CpuTraceSpecId != 0)
+			if (ScopeNamePtr)
 			{
 				if (CurrentAncestors.Num() > 0)
 				{
 					for (int i = CurrentAncestors.Num() - 1 - CommonAncestors; i >= 0; --i)
 					{
-						FCpuProfilerTrace::OutputBeginEvent(CurrentAncestors[i]->CpuTraceSpecId);
+						FCpuProfilerTrace::OutputBeginDynamicEvent(*CurrentAncestors[i]->Name);
 						++CurrentTraceDepth;
 					}
 				}
-				FCpuProfilerTrace::OutputBeginEvent(CpuTraceSpecId);
+				FCpuProfilerTrace::OutputBeginDynamicEvent(**ScopeNamePtr);
 				++CurrentTraceDepth;
 			}
 			ensure(CurrentTraceDepth == CurrentAncestors.Num() + (Info.ScopeNode != nullptr));
 		}
 		LastScope = Info.ScopeNode;
-		LastCpuTraceSpecId = CpuTraceSpecId;
 	}
 	CurrentExecInfo = &Info;
 	ON_SCOPE_EXIT{
@@ -496,7 +494,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutineNode* Coroutin
 	FCoroutineNode* Root = Coroutine;
 	for (;;)
 	{
-		FNodeExecInfo* It = m_SuspendedNodes.FindByPredicate(NodeIs(Coroutine));
+		FNodeExecInfo* It = m_SuspendedNodes.FindByPredicate(NodeIs(Root));
 		if (It)
 		{
 			if (It->Parent)
@@ -513,7 +511,7 @@ void ACETeam_Coroutines::FCoroutineExecutor::AbortTree( FCoroutineNode* Coroutin
 		}
 		else
 		{
-			It = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Coroutine));
+			It = ::Algo::FindByPredicate(m_ActiveNodes, NodeIs(Root));
 			if (It)
 			{
 				if (It->Parent)

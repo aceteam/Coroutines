@@ -22,6 +22,8 @@ public:
 
 	void StartCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
 
+	void StartNamedCoroutine(FString const& Name, ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
+
 	void AbortCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine);
 
 	virtual void Tick(float DeltaTime) override;

@@ -107,21 +107,53 @@ class TCoroVar : public TSharedRef<T>
 {
 };
 
-//Creates a coroutine variable that can be referenced across coroutine blocks. Checks that the type is not a raw UObject pointer or TObjectPtr as that is not safe unless you are sure what you're doing
+// Template specialization for AActor and UActorComponent raw(ish) pointer types - prevents dereferencing but allows comparison and assignment
+//If you're having trouble with compiling a CoroVar of one of those types, you should probably be using TWeakObjectPtr instead. 
+//If you want it only for comparison, then don't dereference, just compare / assign values directly
+template <typename T>
+	requires (!!TIsPointerOrObjectPtrToBaseOf<T, AActor>::Value || !!TIsPointerOrObjectPtrToBaseOf<T, UActorComponent>::Value)
+class TCoroVar<T> : public TSharedRef<T>
+{
+public:
+	using TSharedRef<T>::TSharedRef;
+	
+	// Delete dereference operators to prevent unsafe access
+	T& operator*() const = delete;
+	T* operator->() const = delete;
+
+	// Allow assignment from underlying pointer type
+	TCoroVar const& operator=(const T& Other) const
+	{
+		TSharedRef<T>::Get() = Other;
+		return *this;
+	}
+
+	// Allow comparison with underlying pointer type
+	bool operator==(const T& Other) const { return TSharedRef<T>::Get() == Other; }
+	bool operator!=(const T& Other) const { return TSharedRef<T>::Get() != Other; }
+	friend bool operator==(const T& Lhs, const TCoroVar& Rhs) { return Lhs == Rhs.TSharedRef<T>::Get(); }
+	friend bool operator!=(const T& Lhs, const TCoroVar& Rhs) { return Lhs != Rhs.TSharedRef<T>::Get(); }
+};
+
+//Creates a coroutine variable that can be referenced across coroutine blocks. 
+//Checks that the type is not a raw UObject pointer or TObjectPtr as that is not safe unless you are sure what you're doing
 template <typename T, typename... InArgTypes>
 TCoroVar<T> CoroVar(InArgTypes&&... Args)
 {
-	static_assert(!TIsPointerOrObjectPtrToBaseOf<T, UObject>::Value, "Coroutine variables should not be of type UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
-	if constexpr(TIsTArray_V<T> || TIsTSet<T>::Value)
+	if constexpr(!TIsPointerOrObjectPtrToBaseOf<T, AActor>::Value && !TIsPointerOrObjectPtrToBaseOf<T, UActorComponent>::Value)
 	{
-		typedef typename T::ElementType U;
-		static_assert(!TIsPointerOrObjectPtrToBaseOf<U, UObject>::Value, "Coroutine variables should not contain types UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
-	}
-	if constexpr(TIsTMap<T>::Value)
-	{
-		typedef typename T::KeyType K;
-		typedef typename T::ValueType V;
-		static_assert(!TIsPointerOrObjectPtrToBaseOf<K, UObject>::Value && !TIsPointerOrObjectPtrToBaseOf<V, UObject>::Value, "Coroutine variables should not contain types UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+		static_assert(!TIsPointerOrObjectPtrToBaseOf<T, UObject>::Value, "Coroutine variables should not be of type UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+		if constexpr(TIsTArray_V<T> || TIsTSet<T>::Value)
+		{
+			typedef typename T::ElementType U;
+			static_assert(!TIsPointerOrObjectPtrToBaseOf<U, UObject>::Value, "Coroutine variables should not contain types UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+		}
+		if constexpr(TIsTMap<T>::Value)
+		{
+			typedef typename T::KeyType K;
+			typedef typename T::ValueType V;
+			static_assert(!TIsPointerOrObjectPtrToBaseOf<K, UObject>::Value && !TIsPointerOrObjectPtrToBaseOf<V, UObject>::Value, "Coroutine variables should not contain types UObject* or TObjectPtr<...>, since these can turn into dangling pointers, use TWeakObjectPtr<...> instead");
+		}
 	}
 	auto Return = ::MakeShared<T>(::Forward<InArgTypes>(Args)...);
 	return static_cast<TCoroVar<T>&>(Return);
@@ -129,9 +161,26 @@ TCoroVar<T> CoroVar(InArgTypes&&... Args)
 
 //Same as CoroVar but does not check for UObject direct pointer types, use at your own risk
 //Can safely be used if you only need the value for equality comparisons with another, safe UObject pointer.
+//Not intended to be used with non uobject pointer types.
 template <typename T, typename... InArgTypes>
 TCoroVar<T> CoroVarUnsafe(InArgTypes&&... Args)
 {
+	
+	if constexpr(TIsTArray_V<T> || TIsTSet<T>::Value)
+	{
+		typedef typename T::ElementType U;
+		static_assert(TIsPointerOrObjectPtrToBaseOf<U, UObject>::Value, "CoroVarUnsafe is for pointer types, to assert that you know what you're doing with it. Not for other types.");
+	}
+	else if constexpr(TIsTMap<T>::Value)
+	{
+		typedef typename T::KeyType K;
+		typedef typename T::ValueType V;
+		static_assert(TIsPointerOrObjectPtrToBaseOf<K, UObject>::Value || TIsPointerOrObjectPtrToBaseOf<V, UObject>::Value, "CoroVarUnsafe is for pointer types, to assert that you know what you're doing with it. Not for other types.");
+	}
+	else
+	{
+		static_assert(TIsPointerOrObjectPtrToBaseOf<T, UObject>::Value, "CoroVarUnsafe is for pointer types, to assert that you know what you're doing with it. Not for other types.");
+	}
 	auto Return = ::MakeShared<T>(::Forward<InArgTypes>(Args)...);
 	return static_cast<TCoroVar<T>&>(Return);
 }

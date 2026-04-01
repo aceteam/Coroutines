@@ -2,7 +2,7 @@
 #pragma once
 
 #include "CoroutineExecutor.h"
-#include "CoroutineParameter.h"
+#include "FunctionTraits.h"
 
 namespace ACETeam_Coroutines
 {
@@ -20,51 +20,12 @@ namespace ACETeam_Coroutines
 		};
 
 		template <typename TLambda>
-		class TWeakLambdaCoroutine: public FCoroutineNode
-		{
-			FWeakObjectPtr m_Object;
-			TLambda	m_Lambda;
-		public:
-			TWeakLambdaCoroutine (UObject* Obj, TLambda const & Lambda)
-				: m_Object(Obj)
-				, m_Lambda(Lambda){}
-			virtual EStatus Start(FCoroutineExecutor*) override
-			{
-				if (m_Object.IsValid())
-				{
-					m_Lambda();
-					return Completed;
-				}
-				return Failed;
-			}
-		};
-
-		template <typename TLambda>
 		class TConditionLambdaCoroutine : public FCoroutineNode
 		{
 			TLambda m_Lambda;
 		public:
 			TConditionLambdaCoroutine (TLambda const & Lambda) : m_Lambda(Lambda) {}
 			virtual EStatus Start(FCoroutineExecutor*) override { return m_Lambda() ? Completed : Failed; }
-		};
-
-		template <typename TLambda>
-		class TWeakConditionLambdaCoroutine: public FCoroutineNode
-		{
-			FWeakObjectPtr m_Object;
-			TLambda	m_Lambda;
-		public:
-			TWeakConditionLambdaCoroutine (UObject* Obj, TLambda const & Lambda)
-				: m_Object(Obj)
-				, m_Lambda(Lambda){}
-			virtual EStatus Start(FCoroutineExecutor*) override
-			{
-				if (m_Object.IsValid())
-				{
-					return m_Lambda() ? Completed : Failed;
-				}
-				return Failed;
-			}
 		};
 		
 		template <typename TLambda>
@@ -94,26 +55,6 @@ namespace ACETeam_Coroutines
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
 			virtual bool Debug_IsDeferredNodeGenerator() const override { return true; }
 #endif
-		};
-
-		template <typename TLambda>
-		class TWeakDeferredCoroutineWrapper : public TDeferredCoroutineWrapper<TLambda>
-		{
-			FWeakObjectPtr m_Object;
-			
-		public:
-			TWeakDeferredCoroutineWrapper (UObject* Obj, TLambda const& Lambda)
-			: TDeferredCoroutineWrapper<TLambda>(Lambda)
-			, m_Object(Obj){}
-		
-			virtual EStatus Start(FCoroutineExecutor* Executor) override
-			{
-				if (m_Object.IsValid())
-				{
-					return TDeferredCoroutineWrapper<TLambda>::Start(Executor);
-				}
-				return Failed;
-			}
 		};
 		
 		template <typename TLambdaRetType = void, typename Enable=void>
@@ -320,36 +261,30 @@ namespace ACETeam_Coroutines
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
 			FNamedScopeNode* ParentScope = nullptr; //set by executor
 			FString Name;
-			int32 CpuTraceSpecId;
 			virtual FString Debug_GetName() const override { return Name; }
 			virtual bool Debug_IsDebuggerScope() const override { return true; }
 			friend class ::ACETeam_Coroutines::FCoroutineExecutor;
 #endif
 		public:
-			FNamedScopeNode(FString&& InName, int InCpuTraceId)
+			FNamedScopeNode(FString&& InName)
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
 				: Name(InName)
-				, CpuTraceSpecId(InCpuTraceId)
 #endif
 			{}
 			
 		};
 
-		struct ACETEAM_COROUTINES_API FNamedScopeHelper
+		struct FNamedScopeHelper
 		{
 			FString Name;
 
 			FNamedScopeHelper(FString const& InName) : Name(InName) {}
 
-#if WITH_ACETEAM_COROUTINE_DEBUGGER
-			int32 GetCpuProfilerTraceSpecId() const;
-#endif
-
 			template <typename TChild>
 			FCoroutineNodeRef operator[] (TChild&& Body)
 			{
 #if WITH_ACETEAM_COROUTINE_DEBUGGER
-				auto NamedRoot = MakeShared<FNamedScopeNode, DefaultSPMode> (MoveTemp(Name), GetCpuProfilerTraceSpecId());
+				auto NamedRoot = MakeShared<FNamedScopeNode, DefaultSPMode> (MoveTemp(Name));
 				AddCoroutineChild(NamedRoot, Body);
 				return NamedRoot;
 #else
@@ -720,48 +655,171 @@ namespace ACETeam_Coroutines
 	/**
 	 * Used as a way to give a name to a coroutine that will show up in the debugger, so it won't just be an anonymous block running
 	 */
-	Detail::FNamedScopeHelper ACETEAM_COROUTINES_API _NamedScope(FString const& RootName);
+	inline Detail::FNamedScopeHelper _NamedScope(FString const& RootName)
+	{
+		return Detail::FNamedScopeHelper(RootName);
+	}
 	
 	namespace Detail
 	{
-		template <typename TLambda, typename TLambdaRetType = void, typename Enable=void>
-		struct TAddWeakLambdaHelper
+		template<typename TLambda, typename TObject>
+		class TWeakLambdaNode : public FCoroutineNode
 		{
-		};
-
-		template <typename TLambda>
-		struct TAddWeakLambdaHelper<TLambda, void>
-		{
-			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
+		protected:
+			TWeakObjectPtr<TObject> WeakObj;
+			TLambda Lambda;
+			
+		public:
+			TWeakLambdaNode(const TObject* Obj, TLambda const& Lambda) : WeakObj(const_cast<TObject*>(Obj)), Lambda(Lambda) {}
+			
+			bool CheckValidity() const
 			{
-				return MakeShared<TWeakLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
+				if (auto Obj = WeakObj.Get())
+				{
+					if constexpr (std::is_base_of_v<AActor, TObject> || std::is_base_of_v<UActorComponent, TObject>)
+					{
+						if (!Obj->GetWorld())
+						{
+							return false;
+						}
+					}
+					return true;
+				}
+				return false;
+			}
+			
+			virtual EStatus Start(FCoroutineExecutor* Executor) override
+			{
+				if (CheckValidity())
+				{
+					typedef typename TFunctorTraits<TLambda>::RetType TRetType;
+					if constexpr (std::is_same_v<void, TRetType>)
+					{
+						Lambda();
+						return Completed;
+					}
+					if constexpr (std::is_same_v<bool, TRetType>)
+					{
+						return Lambda() ? Completed : Failed;
+					}
+				}
+				return Failed;
 			}
 		};
-
-		template <typename TLambda>
-		struct TAddWeakLambdaHelper<TLambda, bool>
+		
+		template<typename TLambda, typename TObject>
+		class TWeakDeferredLambdaNode : public TWeakLambdaNode<TLambda, TObject>
 		{
-			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
+			FCoroutineNodePtr m_Child;
+		public:
+			TWeakDeferredLambdaNode(const TObject* Obj, TLambda const& Lambda) : TWeakLambdaNode<TLambda, TObject>(Obj, Lambda) {}
+			
+			virtual EStatus Start(FCoroutineExecutor* Executor) override
 			{
-				return MakeShared<TWeakConditionLambdaCoroutine<TLambda>, DefaultSPMode>(Obj, Lambda);
+				if (!this->CheckValidity())
+					return Failed;
+				m_Child = this->Lambda();
+				Executor->EnqueueCoroutineNode(m_Child.ToSharedRef(), this);
+				return Suspended;
 			}
-		};
-
-		template <typename TLambda, typename TCoroutine>
-		struct TAddWeakLambdaHelper<TLambda, TSharedRef<TCoroutine, DefaultSPMode>,
-			typename TEnableIf<TIsDerivedFrom<TCoroutine, FCoroutineNode>::Value, void>::Type>
-		{
-			FCoroutineNodeRef operator()(UObject* Obj, TLambda& Lambda)
+			virtual EStatus OnChildStopped(FCoroutineExecutor* /*Exec*/, EStatus Status, FCoroutineNode* /*Child*/) override
 			{
-				return MakeShared<TWeakDeferredCoroutineWrapper<TLambda>, DefaultSPMode>(Obj, Lambda);
+				return Status;
 			}
+			virtual void End(FCoroutineExecutor* Executor, EStatus Status) override
+			{
+				if (Status == Aborted)
+				{
+					Executor->AbortNode(m_Child.ToSharedRef());
+				}
+				m_Child.Reset(); //Child has finished its execution, so it can be released
+			};
+#if WITH_ACETEAM_COROUTINE_DEBUGGER
+			virtual bool Debug_IsDeferredNodeGenerator() const override { return true; }
+#endif
 		};
 	}
 
 	//The body will not be executed if the associated UObject no longer exists
-	template<typename TLambda>
-	FCoroutineNodeRef _Weak(UObject* Obj, TLambda Lambda)
+	//If the object is an actor or actor component, it will also if it has a world
+	template<typename TLambda, typename TObject>
+	FCoroutineNodeRef _Weak(const TObject* Obj, TLambda Lambda)
 	{
-		return Detail::TAddWeakLambdaHelper<TLambda, typename ::TFunctorTraits<TLambda>::RetType>()(Obj, Lambda);
+		static_assert(std::is_base_of_v<UObject, TObject>, "Object must derive from UObject");
+		typedef typename TFunctorTraits<TLambda>::RetType TRetType;
+		if constexpr (TIsCoroutineNodeRef_V<TRetType>)
+		{
+			return MakeShared<Detail::TWeakDeferredLambdaNode<TLambda, TObject>, DefaultSPMode>(Obj, Lambda);
+		}
+		else
+		{
+			return MakeShared<Detail::TWeakLambdaNode<TLambda, TObject>, DefaultSPMode>(Obj, Lambda);
+		}
+	}
+
+	//Wait until a lambda returns true
+	//TODO: make dedicated node for this, instead of being just an alias
+	template<typename T>
+	FCoroutineNodeRef _WaitUntil(T const& Lambda)
+	{
+		static_assert(TIsFunctor_V<T> && TFunctorTraits<T>::ArgCount == 0 && std::is_same_v<typename TFunctorTraits<T>::RetType, bool>, "Lambda must return bool with no arguments");
+		return _Loop(_Not(_ConvertLambda(Lambda)));
+	}
+
+	//Wait until a lambda returns true (weak version)
+	template<typename T>
+	FCoroutineNodeRef _WaitUntil(UObject* Object, T const& Lambda)
+	{
+		static_assert(TIsFunctor_V<T> && TFunctorTraits<T>::ArgCount == 0 && std::is_same_v<typename TFunctorTraits<T>::RetType, bool>, "Lambda must return bool with no arguments");
+		return _Loop(_Not(_Weak(Object, Lambda)));
+	}
+
+	namespace Detail
+	{
+		//TODO: implement dedicated node for this
+		template <typename TObject>
+		struct TOwnerScopeHelper
+		{
+			TOwnerScopeHelper(const TObject* Object) : m_ObjectPtr(const_cast<TObject*>(Object)) {}
+
+			template <typename TChild>
+			FCoroutineNodeRef operator() (TChild&& Body)
+			{
+				auto _Main =
+				_Race(
+					_Loop([WeakObj = m_ObjectPtr]
+					{
+						if (auto Obj = WeakObj.Get())
+						{
+							if constexpr (std::is_base_of_v<AActor, TObject> || std::is_base_of_v<UActorComponent, TObject>)
+							{
+								if (!Obj->GetWorld())
+									return false;
+							}
+							return true;
+						}
+						return false;
+					})
+				);
+				AddCoroutineChild(_Main, Body);
+				return _Main;
+			}
+
+		private:
+			TWeakObjectPtr<TObject> m_ObjectPtr;
+		};
+	}
+
+	//The coroutine contained in this scope will only run while the owner object is valid.
+	//This is useful if you have a lot of subtasks that depend on the lifetime of an object, but you only want to check
+	//it once per frame, not once per task.
+	//The check is guaranteed to occur before the tasks in this scope are evaluated, but if the object is invalidated
+	//inside the scope, other tasks in it will have to handle an invalid object. Still, that shouldn't be a crash, as the
+	//object pointer will still be a valid read at least.
+	template <typename TObject>
+	inline Detail::TOwnerScopeHelper<TObject> _OwnerScope(const TObject* Object)
+	{
+		static_assert(std::is_base_of_v<UObject, TObject>, "Object must derive from UObject");
+		return Detail::TOwnerScopeHelper<TObject>(Object);
 	}
 }

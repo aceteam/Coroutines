@@ -2,6 +2,7 @@
 
 #include "CoroutinesWorldSubsystem.h"
 
+#include "CoroutineElements.h"
 #include "CoroutineExecutor.h"
 
 UCoroutinesWorldSubsystem& UCoroutinesWorldSubsystem::Get(const UObject* WorldContextObject)
@@ -28,6 +29,12 @@ void UCoroutinesWorldSubsystem::StartCoroutine(ACETeam_Coroutines::FCoroutineNod
 	}
 #endif
 	Executor.EnqueueCoroutine(Coroutine);
+}
+
+void UCoroutinesWorldSubsystem::StartNamedCoroutine(FString const& Name,
+                                                    ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine)
+{
+	StartCoroutine(ACETeam_Coroutines::_NamedScope(Name)[Coroutine]);
 }
 
 void UCoroutinesWorldSubsystem::AbortCoroutine(ACETeam_Coroutines::FCoroutineNodeRef const& Coroutine)
